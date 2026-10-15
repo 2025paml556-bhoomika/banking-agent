@@ -6,4 +6,6 @@ dependencies = [
     "ollama>=0.6.3",
     "pandas>=3.0.6",
     "scikit-learn>=1.9.1",
+    "torch>=2.14.1",
+    "transformers>=5.19.0",
 ]
