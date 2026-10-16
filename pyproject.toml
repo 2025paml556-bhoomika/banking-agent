@@ -3,6 +3,7 @@ name = "banking-agent"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "jsonschema>=4.26.0",
     "ollama>=0.6.3",
     "pandas>=3.0.6",
     "scikit-learn>=1.9.1",
