@@ -1,6 +1,7 @@
 """Hugging Face causal LM used for all prompt and decoding experiments."""
 
 import logging
+import os
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -9,8 +10,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)
 logging.getLogger("httpx2").setLevel(logging.WARNING)
 log = logging.getLogger("llm")
 
-MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
-DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
+MODEL = os.environ.get("MODEL", "Qwen/Qwen2.5-1.5B-Instruct")  # set MODEL=Qwen/Qwen2.5-3B-Instruct to compare
+DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 log.info("loading %s on %s", MODEL, DEVICE)
 tokenizer = AutoTokenizer.from_pretrained(MODEL)

@@ -24,8 +24,8 @@ assistant but almost no experiments.
 [done] 7. Adaptation: retrieval few-shot  accuracy 0.84 (from 0.43)
 [done] 8. E6 failure analysis  FAILURES.md, 7 failure types, 11 cases
 [done] 9. E7 final system      main.py on one HF model, code-driven tool order
-[next] 10. notebook
-      11. report + presentation
+[done] 10. notebook            banking_agent.ipynb, 33 cells, runs in about 1 minute
+[next] 11. report + presentation
 ```
 
 ---
@@ -458,9 +458,41 @@ timeframe]". A real backend would return the data the reply needs.
 
 ---
 
-## Steps 10 to 11 (planned)
+## Step 10: Notebook
+
+**Files:** `banking_agent.ipynb`, `llm.py` (`MODEL` can be set with an
+environment variable)
+
+**What we did.** One notebook with ten sections in the order of the
+workflow: dataset, model and architecture, E1, E2, E3, E4, retrieval, E6,
+E7 demo, summary. Each code cell imports from the existing `.py` files.
+No experiment code is copied into the notebook, so the scripts and the
+notebook cannot drift apart.
+
+**How it runs.** Result tables are loaded from the saved `results_*.csv`
+files, so "Run all" takes about one minute including the model load and
+the live demo. Each experiment has an optional rerun cell
+(`# %run baseline.py` and so on) that a reader can uncomment to call the
+model again on the 100 rows.
+
+**Colab.** The first cell clones the GitHub repository and installs the
+dependencies when it detects Colab. Locally it does nothing.
+`os.environ["MODEL"] = "Qwen/Qwen2.5-3B-Instruct"` in the same cell
+switches every later cell to the larger model, for the comparison run on
+a Colab GPU.
+
+**Architecture cell (Req 4).** Shows the four stages on a project
+message: tokenization (`How do I track my card?` is 7 tokens with their
+IDs), embeddings (shape 1 x 7 x 1536), the LM head (top-5 next-token
+probabilities), and greedy generation.
+
+**Verified.** Executed end to end with `nbclient`: 33 cells, 0 errors,
+outputs saved in the file.
+
+---
+
+## Step 11 (planned)
 
 | Step | What | Output for the report |
 |---|---|---|
-| Notebook | One notebook that runs steps 1 to 9 in order, on Colab or locally. `MODEL` is one variable at the top so the 3B run is one change. | Executable deliverable |
 | Report | Write up all of the above. 10 to 15 pages. | Report + slides |
