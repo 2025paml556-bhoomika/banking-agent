@@ -489,6 +489,13 @@ probabilities), and greedy generation.
 **Verified.** Executed end to end with `nbclient`: 33 cells, 0 errors,
 outputs saved in the file.
 
+**Full-run version.** `banking_agent_full.ipynb` has the same sections,
+but every experiment cell calls the model live (`%run baseline.py` and so
+on) before its results cell. "Run all" recomputes everything: 38 cells,
+about 21 minutes on the M3 Mac, 0 errors, same numbers as the saved
+CSVs. Use this one when a reader wants proof, the fast one when they want
+to read.
+
 ---
 
 ## Step 11 (planned)
