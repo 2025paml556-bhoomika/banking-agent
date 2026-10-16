@@ -1,23 +1,31 @@
+"""E7: final banking assistant. One Hugging Face model does three jobs:
+tool selection, intent classification (retrieval few-shot), and the customer reply."""
+
 import json
 
-import ollama
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
+from jsonschema import ValidationError, validate
 
-MODEL = "qwen2.5:3b"
-DATA_URL = "https://raw.githubusercontent.com/PolyAI-LDN/task-specific-datasets/master/banking_data/train.csv"
+from baseline import INTENTS, parse_intent
+from llm import generate
+from retrieval import build_prompt
 
-# Intent classifier trained on the BANKING77 train split (77 intents).
-train = pd.read_csv(DATA_URL)
-classifier = make_pipeline(TfidfVectorizer(ngram_range=(1, 2)), LogisticRegression(max_iter=1000))
-classifier.fit(train["text"], train["category"])
-INTENTS = sorted(train["category"].unique())
+INTENT_SCHEMA = {
+    "type": "object",
+    "properties": {"intent": {"type": "string", "enum": INTENTS}},
+    "required": ["intent"],
+    "additionalProperties": False,
+}
 
 
 def read_intent(message: str) -> dict:
-    return {"intent": classifier.predict([message])[0]}
+    """Classify with the LLM using the 5 most similar labelled examples, then validate."""
+    output = generate(build_prompt(message), max_new_tokens=32)
+    result = {"intent": parse_intent(output)}
+    try:
+        validate(result, INTENT_SCHEMA)
+    except ValidationError:
+        return {"error": f"Could not map the message to a known intent (model said {output!r})."}
+    return result
 
 
 def execute_intent(intent: str) -> dict:
@@ -28,13 +36,6 @@ def execute_intent(intent: str) -> dict:
 
 
 TOOL_FUNCS = {"read_intent": read_intent, "execute_intent": execute_intent}
-
-STOP_WORD = "DONE"
-
-DESCRIPTION = f"""You are a customer support assistant for an online bank.
-Use the available tools to handle the customer's request.
-When the request is fully handled, reply to the customer in two or three short sentences
-and then write {STOP_WORD} on a new line."""
 
 TOOLS = [
     {
@@ -63,25 +64,29 @@ TOOLS = [
     },
 ]
 
+SYSTEM = """You are a customer support assistant for an online bank.
+Reply to the customer in two or three short sentences based only on the tool results.
+Mention the reference number. Do not claim any action that the tool results do not show."""
+
+
+def call_tool(messages: list[dict], name: str, **arguments) -> dict:
+    """Run one tool and record the call and its result in the chat history (Qwen tool-call format)."""
+    output = TOOL_FUNCS[name](**arguments)
+    print(f"  [tool] {name}({arguments}) -> {output}")
+    messages.append({"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": {"name": name, "arguments": arguments}}]})
+    messages.append({"role": "tool", "content": json.dumps(output)})
+    return output
+
 
 def handle(message: str) -> str:
-    messages = [{"role": "system", "content": DESCRIPTION}, {"role": "user", "content": message}]
-    for _ in range(10):
-        response = ollama.chat(model=MODEL, messages=messages, tools=TOOLS)
-        messages.append(response.message)
-        content = response.message.content or ""
-        if STOP_WORD in content or not response.message.tool_calls:
-            return content.replace(STOP_WORD, "").strip()
-        for call in response.message.tool_calls:
-            try:
-                output = TOOL_FUNCS[call.function.name](**call.function.arguments)
-            except TypeError as e:
-                output = {"error": str(e)}
-            print(f"  [tool] {call.function.name}({call.function.arguments}) -> {output}")
-            messages.append(
-                {"role": "tool", "tool_name": call.function.name, "content": json.dumps(output)}
-            )
-    return "Sorry, I could not complete your request. Please contact support."
+    # The code fixes the tool order. The 1.5B model did not do this reliably on its own (see PROGRESS.md, step 9).
+    messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": message}]
+    intent = call_tool(messages, "read_intent", message=message)
+    if "error" in intent:
+        return "Sorry, I could not understand your request. Could you say it in a different way?"
+    call_tool(messages, "execute_intent", intent=intent["intent"])
+    # Sampling is used only here, for the free-text reply (E3 conclusion).
+    return generate(messages, max_new_tokens=80, tools=TOOLS, do_sample=True, temperature=0.7).strip()
 
 
 if __name__ == "__main__":

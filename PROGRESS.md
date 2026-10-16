@@ -23,8 +23,9 @@ assistant but almost no experiments.
 [done] 6. E4 structured output  100/100 valid JSON, 86/100 pass schema
 [done] 7. Adaptation: retrieval few-shot  accuracy 0.84 (from 0.43)
 [done] 8. E6 failure analysis  FAILURES.md, 7 failure types, 11 cases
-[next] 9. E7 final system + notebook
-      10. report + presentation
+[done] 9. E7 final system      main.py on one HF model, code-driven tool order
+[next] 10. notebook
+      11. report + presentation
 ```
 
 ---
@@ -78,9 +79,8 @@ decoding settings (Req 7). Hugging Face gives direct access to all three.
 - Same model family as before (Qwen 2.5), smaller size (1.5B instead of
   3B) so 100 generations run in a few minutes on a Mac.
 - Runs on `mps` (Apple GPU) with `bfloat16`.
-- `main.py` still uses Ollama for the tool-calling agent. Experiments
-  import `llm.generate` instead. Tool calling through Ollama already
-  satisfies E5.
+- At this point `main.py` still used Ollama for the tool-calling agent.
+  Step 9 later moved it to the same Hugging Face model.
 
 **Run:** `uv run llm.py` (one test generation)
 
@@ -400,9 +400,67 @@ This closes Req 12 (evaluation) and E6.
 
 ---
 
-## Steps 9 to 10 (planned)
+## Step 9: E7 final system
+
+**Files:** `main.py` (rewritten), `llm.py` (`generate` accepts `tools`),
+`pyproject.toml` (`ollama` removed)
+
+**What we did.** Rebuilt `main.py` on the one Hugging Face model. Ollama
+is gone. The model does three jobs:
+
+1. **Intent classification** inside `read_intent`: the retrieval few-shot
+   prompt from step 7 (accuracy 0.84), greedy. The result is validated
+   against a JSON schema with the 77 intents as `enum` (step 6). An
+   invalid label returns an error, and the assistant asks the customer to
+   rephrase.
+2. **Tool protocol**: `read_intent` and `execute_intent` keep their JSON
+   schemas. Each call and result is written into the chat history in the
+   Qwen tool-call format, so the model sees a real tool transcript.
+3. **Customer reply**: the model writes two or three sentences from the
+   tool results. This is the only place with sampling
+   (`temperature=0.7`), per the E3 conclusion.
+
+**One design change, and why.** The old design let the LLM decide which
+tool to call and when. We tested this with the 1.5B model on 4 messages,
+twice (plain instruction, then with a worked example in the history).
+Result: 0 of 8 correct sequences. The model skipped `read_intent` and
+answered as a general chatbot, or called `read_intent` and then invented
+an intent name (`BLOCK_CARD_LOST`) for `execute_intent`, or claimed an
+action it never executed ("I have blocked your card"). So the tool order
+is now fixed in code: `read_intent`, then `execute_intent`, then reply.
+This is the same lesson as E2 and E6: with a small model, put the
+control in code and leave the language work to the model.
+
+**Demo run.**
+
+```
+Customer: I lost my card, please block it
+  [tool] read_intent({'message': 'I lost my card, please block it'}) -> {'intent': 'lost_or_stolen_card'}
+  [tool] execute_intent({'intent': 'lost_or_stolen_card'}) -> {'intent': 'lost_or_stolen_card', 'status': 'done', 'reference': 'REF-7396'}
+Assistant: Your request to block your lost card has been processed. Your reference number is REF-7396. Please keep this information safe as you will need it for further actions.
+
+Customer: What foreign exchange rate will you use?
+  [tool] read_intent(...) -> {'intent': 'exchange_rate'}
+  [tool] execute_intent({'intent': 'exchange_rate'}) -> {..., 'reference': 'REF-2633'}
+Assistant: The foreign exchange rate has been fetched successfully. The reference number for this request is REF-2633.
+
+Customer: asdf qwerty zzz
+  [tool] read_intent(...) -> {'error': "Could not map the message to a known intent (model said 'None of the provided messages match any of the given intents.')."}
+Assistant: Sorry, I could not understand your request. Could you say it in a different way?
+```
+
+**Known limit.** `execute_intent` is a stub. It returns `status: done`
+and a reference for every intent, so the reply for "How long should my
+new card take to arrive?" contained a placeholder "[estimated
+timeframe]". A real backend would return the data the reply needs.
+
+**Run:** `uv run main.py`, then type messages. Ctrl-D exits.
+
+---
+
+## Steps 10 to 11 (planned)
 
 | Step | What | Output for the report |
 |---|---|---|
-| E7 final system | Best prompt inside `main.py`. Notebook that runs end to end. | Demo |
+| Notebook | One notebook that runs steps 1 to 9 in order, on Colab or locally. `MODEL` is one variable at the top so the 3B run is one change. | Executable deliverable |
 | Report | Write up all of the above. 10 to 15 pages. | Report + slides |
