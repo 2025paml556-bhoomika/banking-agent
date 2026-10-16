@@ -22,8 +22,8 @@ assistant but almost no experiments.
 [done] 5. E3 decoding comparison  greedy 0.43, sampling 0.38 to 0.44, no gain
 [done] 6. E4 structured output  100/100 valid JSON, 86/100 pass schema
 [done] 7. Adaptation: retrieval few-shot  accuracy 0.84 (from 0.43)
-[next] 8. E6 failure analysis
-       9. E7 final system + notebook
+[done] 8. E6 failure analysis  FAILURES.md, 7 failure types, 11 cases
+[next] 9. E7 final system + notebook
       10. report + presentation
 ```
 
@@ -373,10 +373,36 @@ refusal ("intent not specified"). These feed E6.
 
 ---
 
-## Steps 8 to 10 (planned)
+## Step 8: E6 evaluation and failure analysis
+
+**File:** `FAILURES.md`
+
+**What we did.** Read all the `results_*.csv` files together and built
+the evaluation deliverable: criteria, a summary table of all 13 systems,
+7 failure types, and 11 worked failure cases with cause and fix.
+
+**Main points.**
+
+- 24 rows were right in every system; 12 were wrong in every system.
+- The dominant failure is near-synonym confusion. Only relevant examples
+  fix it, and they fix most of it.
+- Format failures (preamble, invented names, refusals) are cheap to fix
+  with a constraint line and a JSON schema.
+- Retrieval has one new failure mode: TF-IDF matches words, not meaning.
+  "What do I have to do to change my name" retrieved five "What do I have
+  to do to ..." rows about other topics, and the model refused. Two rows
+  that E1 got right were lost this way.
+- Sampling adds errors and removes none.
+- Two of the remaining 16 errors look like debatable gold labels, not
+  model mistakes.
+
+This closes Req 12 (evaluation) and E6.
+
+---
+
+## Steps 9 to 10 (planned)
 
 | Step | What | Output for the report |
 |---|---|---|
-| E6 failure analysis | Pick 3+ wrong answers from the result CSVs. Explain why. | Failure table |
 | E7 final system | Best prompt inside `main.py`. Notebook that runs end to end. | Demo |
 | Report | Write up all of the above. 10 to 15 pages. | Report + slides |
