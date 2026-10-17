@@ -25,7 +25,8 @@ assistant but almost no experiments.
 [done] 8. E6 failure analysis  FAILURES.md, 7 failure types, 11 cases
 [done] 9. E7 final system      main.py on one HF model, code-driven tool order
 [done] 10. notebook            banking_agent.ipynb, 33 cells, runs in about 1 minute
-[next] 11. report + presentation
+[done] 11. report draft        REPORT.md, 14 sections, about 6300 words
+[next] 12. group review of report, slides, contribution statement
 ```
 
 ---
@@ -498,8 +499,35 @@ to read.
 
 ---
 
-## Step 11 (planned)
+## Step 11: Report draft
 
-| Step | What | Output for the report |
+**File:** `REPORT.md`
+
+**What we did.** Drafted the full technical report in the assignment's
+suggested structure: abstract, problem, dataset, generative-model and
+architecture analysis, application architecture, baseline, prompts,
+decoding, adaptation, structured output and tools, evaluation, failure
+analysis and responsible use, limitations, conclusion, references, and
+two appendices (reproduction, contribution statement).
+
+New prose that closes the open requirements: Req 1 (problem definition,
+section 2), Req 3 (three model families compared, section 4.1 and 4.2),
+Req 4 (architecture on a project example with real numbers, section
+4.3), Req 13 (responsible use, section 12.4). The experiment sections
+reuse the tables from this log and from `FAILURES.md`.
+
+About 6,300 words, which is 12 to 14 pages with tables. Converts to Word
+with `pandoc REPORT.md -o REPORT.docx`.
+
+**Left for the group.** Title page details, member names, review of the
+prose, the contribution statement in Appendix B, and the slides.
+
+---
+
+## Step 12 (planned)
+
+| Step | What | Output |
 |---|---|---|
+| Group review | Read `REPORT.md`, check numbers against the notebook, edit prose, fill the title page and Appendix B | Final report |
+| Slides | About 8 slides from the report tables | 8 to 10 minute presentation |
 | Report | Write up all of the above. 10 to 15 pages. | Report + slides |
