@@ -8,7 +8,7 @@ Code: `main.py` (96 lines)
 
 - Loads the BANKING77 train split from GitHub.
 - TF-IDF + Logistic Regression intent classifier (77 intents).
-- Two tools with JSON schemas: `read_intent` and `execute_intent`.
+- Two tools with JSON schemas: `classify_intent` and `handle_intent`.
 - Agent loop: `qwen2.5:3b` through Ollama calls the tools and writes the final reply.
 - CLI loop for interactive use.
 
@@ -25,7 +25,7 @@ Code: `main.py` (96 lines)
 | 7 | Decoding study | Not done | No decoding options set. No greedy vs temperature vs top-k/top-p comparison. |
 | 8 | Adaptation decision | Not done | No prompting vs RAG vs PEFT analysis. |
 | 9 | Structured output | Partial | Tools return JSON dicts. No schema definition. No validation step. No sample validated outputs. |
-| 10 | Tool / function calling | Done | Two tools with input schemas. Agent loop invokes them. `execute_intent` is a stub with the same output for all 77 intents. |
+| 10 | Tool / function calling | Done | Two tools with input schemas. Agent loop invokes them. `handle_intent` is a stub with the same output for all 77 intents. |
 | 11 | Programmatic prompting | Partial | `DESCRIPTION` is an f-string. No parameterized template function for different inputs or prompt variants. |
 | 12 | Evaluation | Not done | No criteria, no metrics, no failure analysis. |
 | 13 | Responsible use | Not done | No risk analysis or controls. |
@@ -59,9 +59,9 @@ Code: `main.py` (96 lines)
 
 ## Design gaps
 
-1. **The LLM does not identify the intent.** A TF-IDF classifier does this inside `read_intent`. The requirement is "intent understanding" with an LLM. Prompt experiments (Req 6) have nothing to measure until the LLM classifies the intent.
+1. **The LLM does not identify the intent.** A TF-IDF classifier does this inside `classify_intent`. The requirement is "intent understanding" with an LLM. Prompt experiments (Req 6) have nothing to measure until the LLM classifies the intent.
 2. **Ollama, not Hugging Face.** Req 5 asks for a Hugging Face causal LM. The tokenizer, logits, and decoding parameters are not accessible through Ollama. Reqs 4, 6, 7 depend on this access.
-3. **`execute_intent` is a stub.** The requirement accepts a simulation, but the examples (transaction status, card block, branch lookup) have realistic inputs and outputs. The current tool returns one shape for all intents.
+3. **`handle_intent` is a stub.** The requirement accepts a simulation, but the examples (transaction status, card block, branch lookup) have realistic inputs and outputs. The current tool returns one shape for all intents.
 4. **No evaluation subset.** All experiments need a fixed test subset from BANKING77. None exists.
 
 ## Rubric coverage estimate

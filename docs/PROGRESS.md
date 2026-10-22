@@ -409,12 +409,12 @@ This closes Req 12 (evaluation) and E6.
 **What we did.** Rebuilt `main.py` on the one Hugging Face model. Ollama
 is gone. The model does three jobs:
 
-1. **Intent classification** inside `read_intent`: the retrieval few-shot
+1. **Intent classification** inside `classify_intent`: the retrieval few-shot
    prompt from step 7 (accuracy 0.84), greedy. The result is validated
    against a JSON schema with the 77 intents as `enum` (step 6). An
    invalid label returns an error, and the assistant asks the customer to
    rephrase.
-2. **Tool protocol**: `read_intent` and `execute_intent` keep their JSON
+2. **Tool protocol**: `classify_intent` and `handle_intent` keep their JSON
    schemas. Each call and result is written into the chat history in the
    Qwen tool-call format, so the model sees a real tool transcript.
 3. **Customer reply**: the model writes two or three sentences from the
@@ -424,11 +424,11 @@ is gone. The model does three jobs:
 **One design change, and why.** The old design let the LLM decide which
 tool to call and when. We tested this with the 1.5B model on 4 messages,
 twice (plain instruction, then with a worked example in the history).
-Result: 0 of 8 correct sequences. The model skipped `read_intent` and
-answered as a general chatbot, or called `read_intent` and then invented
-an intent name (`BLOCK_CARD_LOST`) for `execute_intent`, or claimed an
+Result: 0 of 8 correct sequences. The model skipped `classify_intent` and
+answered as a general chatbot, or called `classify_intent` and then invented
+an intent name (`BLOCK_CARD_LOST`) for `handle_intent`, or claimed an
 action it never executed ("I have blocked your card"). So the tool order
-is now fixed in code: `read_intent`, then `execute_intent`, then reply.
+is now fixed in code: `classify_intent`, then `handle_intent`, then reply.
 This is the same lesson as E2 and E6: with a small model, put the
 control in code and leave the language work to the model.
 
@@ -436,21 +436,21 @@ control in code and leave the language work to the model.
 
 ```
 Customer: I lost my card, please block it
-  [tool] read_intent({'message': 'I lost my card, please block it'}) -> {'intent': 'lost_or_stolen_card'}
-  [tool] execute_intent({'intent': 'lost_or_stolen_card'}) -> {'intent': 'lost_or_stolen_card', 'status': 'done', 'reference': 'REF-7396'}
+  [tool] classify_intent({'message': 'I lost my card, please block it'}) -> {'intent': 'lost_or_stolen_card'}
+  [tool] handle_intent({'intent': 'lost_or_stolen_card'}) -> {'intent': 'lost_or_stolen_card', 'status': 'done', 'reference': 'REF-7396'}
 Assistant: Your request to block your lost card has been processed. Your reference number is REF-7396. Please keep this information safe as you will need it for further actions.
 
 Customer: What foreign exchange rate will you use?
-  [tool] read_intent(...) -> {'intent': 'exchange_rate'}
-  [tool] execute_intent({'intent': 'exchange_rate'}) -> {..., 'reference': 'REF-2633'}
+  [tool] classify_intent(...) -> {'intent': 'exchange_rate'}
+  [tool] handle_intent({'intent': 'exchange_rate'}) -> {..., 'reference': 'REF-2633'}
 Assistant: The foreign exchange rate has been fetched successfully. The reference number for this request is REF-2633.
 
 Customer: asdf qwerty zzz
-  [tool] read_intent(...) -> {'error': "Could not map the message to a known intent (model said 'None of the provided messages match any of the given intents.')."}
+  [tool] classify_intent(...) -> {'error': "Could not map the message to a known intent (model said 'None of the provided messages match any of the given intents.')."}
 Assistant: Sorry, I could not understand your request. Could you say it in a different way?
 ```
 
-**Known limit.** `execute_intent` is a stub. It returns `status: done`
+**Known limit.** `handle_intent` is a stub. It returns `status: done`
 and a reference for every intent, so the reply for "How long should my
 new card take to arrive?" contained a placeholder "[estimated
 timeframe]". A real backend would return the data the reply needs.

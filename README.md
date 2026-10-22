@@ -101,7 +101,7 @@ by `uv sync`.
 
 | File | Purpose |
 |---|---|
-| `main.py` | E7. The final assistant with `read_intent` and `execute_intent` tools. |
+| `main.py` | E7. The final assistant with `classify_intent` and `handle_intent` tools. |
 | `src/llm.py` | Loads the model. `generate(messages, **decoding)` is the one function all scripts use. |
 | `src/baseline.py` | E1. Loads the 77 intent names, the simplest prompt, and `parse_intent`. |
 | `src/prompts.py` | E2. Five prompt styles: zero-shot, role, constraint, few-shot, few-shot + constraint. |
