@@ -83,11 +83,11 @@ retrieval): 24 rows were right in all four, 12 were wrong in all four.
 ## Reproduce
 
 ```bash
-uv run baseline.py      # E1
-uv run prompts.py       # E2
-uv run decoding.py      # E3
-uv run structured.py    # E4
-uv run retrieval.py     # adaptation
+uv run -m src.baseline      # E1
+uv run -m src.prompts       # E2
+uv run -m src.decoding      # E3
+uv run -m src.structured    # E4
+uv run -m src.retrieval     # adaptation
 ```
 
 Each script writes `results_*.csv` with one row per test message:
