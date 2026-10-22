@@ -43,7 +43,7 @@ We also use a classical classifier (TF-IDF plus logistic regression) as a refere
 
 **Fields.** Two columns: `text` (the customer message) and `category` (the intent label).
 
-**Splits.** Train 10,003 rows, test 3,080 rows. All 77 intents appear in both.
+**Splits.** Train 10,003 rows, test 3,080 rows. All 77 intents appear in both. The two CSV files are copied from the PolyAI GitHub repository into `data/` and committed, so every script reads them from disk.
 
 **Message statistics.** Mean length 11.9 words, maximum 79. Typical messages are short questions or statements.
 

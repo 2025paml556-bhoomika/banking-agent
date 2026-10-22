@@ -108,7 +108,8 @@ by `uv sync`.
 | `src/decoding.py` | E3. Greedy, temperature 0.7, temperature 1.5, top-k 50, top-p 0.9. |
 | `src/structured.py` | E4. JSON output validated with `jsonschema`. |
 | `src/retrieval.py` | Adaptation. Five examples chosen by TF-IDF similarity. |
-| `evaluation/make_eval_subset.py` | Creates `eval_subset.csv` and `heldout_subset.csv` from the BANKING77 test split. |
+| `data/train.csv`, `data/test.csv` | BANKING77 train and test splits (local copies from the PolyAI GitHub repository). |
+| `evaluation/make_eval_subset.py` | Creates `eval_subset.csv` and `heldout_subset.csv` from `data/test.csv`. |
 | `evaluation/final_eval.py` | Runs the final system once on the held-out subset. |
 | `evaluation/eval_subset.csv` | Development set: the 100 test messages used by every experiment. |
 | `evaluation/heldout_subset.csv` | Held-out set: 100 other test messages, used only by `final_eval.py`. |
@@ -143,6 +144,5 @@ Read `docs/PROGRESS.md` for the reasons behind each number.
   from the cache.
 - **Out of memory**: close other applications or use the default 1.5B model.
   Do not set `MODEL` to a larger model on an 8 GB machine.
-- **No internet**: `src/baseline.py` downloads the BANKING77 train CSV from
-  GitHub at import time. The model also needs internet for the first
-  download.
+- **No internet**: the BANKING77 CSVs are in `data/`, so the scripts do not
+  download them. The model needs internet for the first download only.

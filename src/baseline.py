@@ -8,8 +8,7 @@ from src.llm import generate
 
 log = logging.getLogger("baseline")
 
-TRAIN_URL = "https://raw.githubusercontent.com/PolyAI-LDN/task-specific-datasets/master/banking_data/train.csv"
-TRAIN = pd.read_csv(TRAIN_URL)
+TRAIN = pd.read_csv("data/train.csv")
 INTENTS = sorted(TRAIN["category"].unique())
 TASK = "Classify the customer message into one of these intents:\n" + ", ".join(INTENTS)
 log.info("loaded %d intent names from the BANKING77 train split", len(INTENTS))
