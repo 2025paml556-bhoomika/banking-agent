@@ -8,10 +8,11 @@ from llm import generate
 
 log = logging.getLogger("baseline")
 
-TEST_URL = "https://raw.githubusercontent.com/PolyAI-LDN/task-specific-datasets/master/banking_data/test.csv"
-INTENTS = sorted(pd.read_csv(TEST_URL)["category"].unique())
+TRAIN_URL = "https://raw.githubusercontent.com/PolyAI-LDN/task-specific-datasets/master/banking_data/train.csv"
+TRAIN = pd.read_csv(TRAIN_URL)
+INTENTS = sorted(TRAIN["category"].unique())
 TASK = "Classify the customer message into one of these intents:\n" + ", ".join(INTENTS)
-log.info("loaded %d intent names from the BANKING77 test split", len(INTENTS))
+log.info("loaded %d intent names from the BANKING77 train split", len(INTENTS))
 
 
 def build_prompt(message: str) -> list[dict]:

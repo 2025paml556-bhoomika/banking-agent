@@ -130,6 +130,6 @@ Read `PROGRESS.md` for the reasons behind each number.
   from the cache.
 - **Out of memory**: close other applications or use the default 1.5B model.
   Do not set `MODEL` to a larger model on an 8 GB machine.
-- **No internet**: `baseline.py` and `prompts.py` download the BANKING77
-  train and test CSV from GitHub at import time. The model also needs
-  internet for the first download.
+- **No internet**: `baseline.py` downloads the BANKING77 train CSV from
+  GitHub at import time. The model also needs internet for the first
+  download.

@@ -2,14 +2,11 @@
 
 import pandas as pd
 
-from baseline import TASK, parse_intent
+from baseline import TASK, TRAIN, parse_intent
 from llm import generate
-
-TRAIN_URL = "https://raw.githubusercontent.com/PolyAI-LDN/task-specific-datasets/master/banking_data/train.csv"
 
 ROLE = "You are a customer support assistant for an online bank."
 CONSTRAINT = "Reply with the exact intent name from the list and nothing else. Always choose exactly one intent."
-TRAIN = pd.read_csv(TRAIN_URL)
 EXAMPLES = TRAIN.sample(n=5, random_state=0)
 SHOTS = "".join(f"Message: {r.text}\nIntent: {r.category}\n\n" for r in EXAMPLES.itertuples())
 

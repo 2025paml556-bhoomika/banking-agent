@@ -323,9 +323,9 @@ All 14 schema failures were the same kind: an intent name not in the enumeration
 | Tool | Input | Output |
 |---|---|---|
 | `read_intent` | `{"message": string}` | `{"intent": <one of 77>}` or `{"error": ...}` |
-| `execute_intent` | `{"intent": string}` | `{"intent", "status": "done", "reference": "REF-nnnn"}` (simulated) |
+| `execute_intent` | `{"intent": string}` | `{"intent", "status", "result"}` plus `"reference": "REF-nnnn"` when `status` is `done` (simulated) |
 
-`read_intent` wraps the retrieval prompt, greedy decoding, the parser, and schema validation against the 77-name enum. `execute_intent` is a simulation, as the assignment permits; a real system would call the banking backend.
+`read_intent` wraps the retrieval prompt, greedy decoding, the parser, and schema validation against the 77-name enum. `execute_intent` is a simulated backend with three outcomes, as the assignment permits: 17 action intents (block card, cancel transfer, order card, ...) return `status: done` with a result sentence and a reference number; 34 informational intents (delivery time, fees, limits, ...) return `status: information` with the fact the reply needs; the remaining 26 intents (disputes, declined or failed payments, unrecognised charges) return `status: unsupported`, and the reply directs the customer to a human agent. A real system would call the banking backend in place of the two lookup tables.
 
 **Orchestration, and a design change.** The original design let the model decide which tool to call and when. We tested this with the 1.5B model on 4 messages, twice: once with an instruction, once with a worked example in the chat history. Result: 0 of 8 correct sequences. The model skipped `read_intent` and answered as a general chatbot; or called `read_intent` and then invented an intent (`BLOCK_CARD_LOST`) for `execute_intent`; or claimed an action it never executed ("I have blocked your card"). So the final system fixes the order in code: `read_intent`, then `execute_intent`, then reply. Each call and its result are written into the chat history in the model's native `<tool_call>` format, so the model sees a real tool transcript when it writes the reply. This is the same lesson as Sections 7 and 8: with a small model, put control in code and leave language to the model.
 
@@ -436,7 +436,7 @@ Across the four main systems (zero-shot, few-shot + constraint, JSON, retrieval)
 - **Model size.** 1.5B parameters, chosen for an 8 GB laptop. A 3B or 7B model on a GPU would likely reduce near-synonym errors. The notebook switches models with one environment variable; the comparison is pending GPU time.
 - **Evaluation size.** 100 rows. Differences under 0.03 are not significant. The size was a deliberate trade for 13 configurations in laptop time.
 - **Lexical retriever.** TF-IDF matches words. A sentence-embedding retriever would address failure type F.
-- **Simulated backend.** `execute_intent` returns a fixed shape for every intent, so replies for information requests ("how long does the card take") contain placeholders. A real backend would return the data the reply needs.
+- **Simulated backend.** `execute_intent` answers from two fixed lookup tables (actions and information) and marks 26 dispute-type intents as unsupported. The facts in the tables are illustrative, not real bank policy. A real backend would return live account data and open tickets for the unsupported cases.
 - **No confidence signal.** The prompted confidence field was uninformative. Logit-based confidence (probability of the chosen label's first token) is available in Hugging Face and would give a real abstain threshold.
 - **Model-driven tool use.** The 1.5B model could not run the tool loop. A larger model might; we did not test it.
 - **Single-turn.** The assistant handles one message. Multi-turn clarification ("Which card?") is not implemented.
