@@ -5,9 +5,9 @@ import json
 import pandas as pd
 from jsonschema import ValidationError, validate
 
-from baseline import INTENTS, TASK
-from llm import generate
-from prompts import EXAMPLES
+from src.baseline import INTENTS, TASK
+from src.llm import generate
+from src.prompts import EXAMPLES
 
 SCHEMA = {
     "type": "object",
@@ -47,14 +47,14 @@ def parse_json(output: str) -> tuple[dict | None, str]:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv("eval_subset.csv")
+    data = pd.read_csv("evaluation/eval_subset.csv")
     data["output"] = [generate(build_prompt(t), max_new_tokens=48) for t in data["text"]]
     parsed = [parse_json(o) for o in data["output"]]
     data["error"] = [err for _, err in parsed]
     data["predicted"] = [obj.get("intent") if isinstance(obj, dict) else None for obj, _ in parsed]
     data["confidence"] = [obj.get("confidence") if isinstance(obj, dict) else None for obj, _ in parsed]
     data["correct"] = data["predicted"] == data["category"]
-    data.to_csv("results_structured.csv", index=False)
+    data.to_csv("evaluation/results/results_structured.csv", index=False)
 
     valid = data["error"] == ""
     print(f"valid JSON:        {data['error'].str.startswith('not JSON').eq(False).sum()}/100")

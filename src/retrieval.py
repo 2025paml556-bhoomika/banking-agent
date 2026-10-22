@@ -5,9 +5,9 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from baseline import TASK, parse_intent
-from llm import generate
-from prompts import CONSTRAINT, TRAIN
+from src.baseline import TASK, parse_intent
+from src.llm import generate
+from src.prompts import CONSTRAINT, TRAIN
 
 K = 5
 vectorizer = TfidfVectorizer(ngram_range=(1, 2)).fit(TRAIN["text"])
@@ -25,14 +25,14 @@ def build_prompt(message: str) -> list[dict]:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv("eval_subset.csv")
+    data = pd.read_csv("evaluation/eval_subset.csv")
     data["output"] = [generate(build_prompt(t), max_new_tokens=32) for t in data["text"]]
     data["predicted"] = [parse_intent(o) for o in data["output"]]
     data["correct"] = data["predicted"] == data["category"]
     # Reference: the answer a plain nearest-neighbour vote would give from the same 5 examples.
     data["knn_vote"] = [retrieve(t)["category"].mode()[0] for t in data["text"]]
     data["knn_correct"] = data["knn_vote"] == data["category"]
-    data.to_csv("results_retrieval.csv", index=False)
+    data.to_csv("evaluation/results/results_retrieval.csv", index=False)
 
     print(f"accuracy (LLM + retrieved examples): {data['correct'].mean():.2f}")
     print(f"accuracy (5-NN vote, no LLM):        {data['knn_correct'].mean():.2f}")

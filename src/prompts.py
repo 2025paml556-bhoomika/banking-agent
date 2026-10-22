@@ -2,8 +2,8 @@
 
 import pandas as pd
 
-from baseline import TASK, TRAIN, parse_intent
-from llm import generate
+from src.baseline import TASK, TRAIN, parse_intent
+from src.llm import generate
 
 ROLE = "You are a customer support assistant for an online bank."
 CONSTRAINT = "Reply with the exact intent name from the list and nothing else. Always choose exactly one intent."
@@ -29,14 +29,14 @@ def build_prompt(message: str, style: str) -> list[dict]:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv("eval_subset.csv")
+    data = pd.read_csv("evaluation/eval_subset.csv")
     table = []
     for style in STYLES:
         result = data.copy()
         result["output"] = [generate(build_prompt(t, style), max_new_tokens=32) for t in data["text"]]
         result["predicted"] = [parse_intent(o) for o in result["output"]]
         result["correct"] = result["predicted"] == result["category"]
-        result.to_csv(f"results_{style}.csv", index=False)
+        result.to_csv(f"evaluation/results/results_{style}.csv", index=False)
         table.append(
             {
                 "prompt": style,

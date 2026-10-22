@@ -4,7 +4,7 @@ import logging
 
 import pandas as pd
 
-from llm import generate
+from src.llm import generate
 
 log = logging.getLogger("baseline")
 
@@ -30,7 +30,7 @@ def parse_intent(output: str) -> str:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv("eval_subset.csv")
+    data = pd.read_csv("evaluation/eval_subset.csv")
     log.info("E1 baseline: %d test messages, greedy decoding, max 32 new tokens", len(data))
 
     outputs, predicted = [], []
@@ -42,8 +42,8 @@ if __name__ == "__main__":
     data["output"] = outputs
     data["predicted"] = predicted
     data["correct"] = data["predicted"] == data["category"]
-    data.to_csv("results_baseline.csv", index=False)
-    log.info("saved results_baseline.csv with columns %s", list(data.columns))
+    data.to_csv("evaluation/results/results_baseline.csv", index=False)
+    log.info("saved evaluation/results/results_baseline.csv with columns %s", list(data.columns))
 
     print(f"accuracy: {data['correct'].mean():.2f}")
     print(f"no intent found: {(data['predicted'] == '').sum()}")

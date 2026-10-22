@@ -3,9 +3,9 @@
 import pandas as pd
 import torch
 
-from baseline import parse_intent
-from llm import generate
-from prompts import build_prompt
+from src.baseline import parse_intent
+from src.llm import generate
+from src.prompts import build_prompt
 
 STYLE = "few_shot_constraint"
 SETTINGS = {
@@ -17,7 +17,7 @@ SETTINGS = {
 }
 
 if __name__ == "__main__":
-    data = pd.read_csv("eval_subset.csv")
+    data = pd.read_csv("evaluation/eval_subset.csv")
     table = []
     for name, decoding in SETTINGS.items():
         torch.manual_seed(0)
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         result["output"] = [generate(build_prompt(t, STYLE), max_new_tokens=32, **decoding) for t in data["text"]]
         result["predicted"] = [parse_intent(o) for o in result["output"]]
         result["correct"] = result["predicted"] == result["category"]
-        result.to_csv(f"results_decoding_{name}.csv", index=False)
+        result.to_csv(f"evaluation/results/results_decoding_{name}.csv", index=False)
         table.append(
             {
                 "decoding": name,

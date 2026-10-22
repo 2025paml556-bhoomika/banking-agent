@@ -6,9 +6,9 @@ import zlib
 
 from jsonschema import ValidationError, validate
 
-from baseline import INTENTS, parse_intent
-from llm import generate
-from retrieval import build_prompt
+from src.baseline import INTENTS, parse_intent
+from src.llm import generate
+from src.retrieval import build_prompt
 
 INTENT_SCHEMA = {
     "type": "object",
@@ -144,7 +144,7 @@ def call_tool(messages: list[dict], name: str, **arguments) -> dict:
 
 
 def handle(message: str) -> str:
-    # The code fixes the tool order. The 1.5B model did not do this reliably on its own (see PROGRESS.md, step 9).
+    # The code fixes the tool order. The 1.5B model did not do this reliably on its own (see docs/PROGRESS.md, step 9).
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": message}]
     intent = call_tool(messages, "read_intent", message=message)
     if "error" in intent:
