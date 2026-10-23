@@ -206,45 +206,28 @@ The model is `Qwen/Qwen2.5-1.5B-Instruct`, loaded with Hugging Face `transformer
 
 **Stage 1. Tokenization: text to integer IDs**
 
-- The tokenizer splits text into subword pieces from a fixed vocabulary of 151,936 entries and maps each piece to an integer.
-- "How do I track my card?" becomes 7 tokens: `How`, ` do`, ` I`, ` track`, ` my`, ` card`, `?` with IDs `[4340, 653, 358, 3754, 847, 3701, 30]`. Common words are one token each; the leading space is part of the token.
-- In the project:
-  - A baseline prompt with the 77 intent names is about 420 tokens. A retrieval prompt with five examples is about 520. Token count is what we pay for in time.
-  - `max_new_tokens` limits the output in tokens, not words. With 16 output tokens, 34 of 100 baseline answers were cut off and accuracy was 0.27. With 32 tokens, accuracy was 0.41. The intent name `card_arrival` alone is 4 tokens.
-  - The chat template adds control tokens (`<|im_start|>`, `<|im_end|>`) around each role and, when tools are passed, a tools block and the `<tool_call>` format. We never write these by hand; `tokenizer.apply_chat_template` inserts them.
+- The tokenizer splits text into subword pieces from a vocabulary of 151,936 and maps each to an integer. "How do I track my card?" becomes 7 tokens, IDs `[4340, 653, 358, 3754, 847, 3701, 30]`.
+- In the project: a baseline prompt is about 420 tokens, a retrieval prompt about 520; tokens are what we pay for in time. `max_new_tokens` counts tokens, not words: at 16, 34 baseline answers were cut off (accuracy 0.27); at 32, accuracy was 0.41. The chat template inserts the control tokens (`<|im_start|>`, `<|im_end|>`, `<tool_call>`) for us.
 
 **Stage 2. Embeddings: IDs to vectors**
 
-- Each token ID selects one row of the embedding matrix. Each row is a vector of 1,536 numbers for this model.
-- The 7-token message becomes a tensor of shape (1, 7, 1536): one sequence, seven positions, 1,536 values per position.
-- Token order is added inside attention through rotary position embeddings, so the model knows that `track` comes before `card`.
-- In the project: this is the only place where the model "reads". Everything after this stage works on vectors, not words. Two messages with the same meaning but different words start as different vectors, and the model has to bring them together in the later layers.
+- Each ID selects a row of 1,536 numbers from the embedding matrix, so the 7-token message becomes a tensor of shape (1, 7, 1536). Position is added inside attention (rotary embeddings).
+- In the project: this is where the model "reads"; everything after works on vectors. Two messages with the same meaning but different words start as different vectors, and the later layers must bring them together.
 
 **Stage 3. Transformer and attention: vectors in context**
 
-- The embeddings pass through 28 decoder layers. Each layer has multi-head self-attention followed by a feed-forward network.
-- Self-attention lets every position look at every earlier position and pull information from it. A causal mask stops a position from seeing later positions, so the model can only use the past, which is what makes generation possible.
-- In the project, attention is the mechanism that makes each experiment work or fail:
-  - In the retrieval prompt, the final `Intent:` position attends back to the customer message and, 400 tokens earlier, to the retrieved example that looks like it. Copying the label from that example is what raised accuracy from 0.43 to 0.84.
-  - In the constraint prompt, the same position attends to the line "Reply with the exact intent name and nothing else", which removed the preamble text from 57 outputs to 0.
-  - In the fixed few-shot prompt, the examples are about other intents, so attention to them helps the format but not the label. That is why accuracy moved only 0.02.
+- 28 decoder layers, each with masked self-attention and a feed-forward network. Every position can pull information from earlier positions, never from later ones.
+- In the project, attention is why each experiment worked or did not: in the retrieval prompt the `Intent:` position attends to the retrieved example that matches the message and copies its label (0.43 to 0.84); in the constraint prompt it attends to the rule line, which removed the preamble (57 to 0); in the fixed few-shot prompt the examples are about other intents, so attention helps the format but not the label (+0.02).
 
 **Stage 4. Language-modelling head: vectors to a probability over the vocabulary**
 
-- The output of the last layer at the final position is multiplied by an output matrix of shape (1,536 by 151,936). The result is one score (logit) per vocabulary entry. Softmax turns the scores into probabilities.
-- Measured on the raw message with no instruction, the top-5 next tokens were ` I` (0.097), ` To` (0.097), ` How` (0.075), ` You` (0.059), ` A` (0.031). The model is about to start a sentence, because nothing told it to classify. The prompt's job is to move this probability mass onto the first token of an intent name.
-- In the project:
-  - This distribution is what decoding settings act on (Section 6). Greedy takes the top entry. Temperature rescales the logits before softmax. Top-k and top-p cut the list before sampling.
-  - The confidence number we asked the model to print in E4 did not come from this distribution; the model copied 0.9 from the example. A real confidence would read the probability of the chosen label's first token here. We list that as future work.
+- The last layer's output at the final position is multiplied by a (1,536 × 151,936) matrix, giving one logit per token; softmax turns them into probabilities. On the bare message the top-5 were ` I` (0.097), ` To` (0.097), ` How` (0.075), ` You` (0.059), ` A` (0.031): the model is about to start a sentence. The prompt's job is to move that mass onto the first token of an intent name.
+- In the project: this distribution is what decoding acts on (greedy takes the top entry; temperature, top-k, top-p reshape or cut it before sampling). The E4 confidence field was not read from here; the model copied 0.9 from the example. A real confidence would be the probability of the chosen label's first token (future work).
 
 **Stage 5. Autoregressive generation: one token at a time**
 
-- One token is chosen from the distribution, appended to the input, and the whole forward pass runs again on the longer sequence. This repeats until a stop token (`<|im_end|>`) or `max_new_tokens`.
-- `card_arrival` is generated as 4 tokens in 4 steps. A 3-sentence customer reply is about 60 to 80 steps. Each step costs one pass through the 28 layers, which is why the reply takes much longer than the label.
-- In the project:
-  - Greedy generation is deterministic: the same prompt gives the same tokens every run. Every classification experiment used it, so the results are reproducible.
-  - For classification there is one correct 4-token path. Any randomness can only leave it. This is the reason sampling never helped in E3 (0.38 to 0.44 around greedy's 0.43) and why we use sampling only for the free-text reply, where variety reads better than a fixed template.
-  - The tool-calling loop in the final system is also autoregressive generation: the model emits a `<tool_call>` block token by token, the code runs the tool, appends the result as text, and the model continues from there.
+- One token is chosen, appended to the input, and the full pass runs again, until `<|im_end|>` or `max_new_tokens`. `card_arrival` takes 4 steps; a 3-sentence reply takes 60 to 80, each a pass through 28 layers.
+- In the project: greedy is deterministic, so every classification run is reproducible. For a label there is one correct token path and randomness can only leave it, which is why sampling never helped in E3 and is used only for the free-text reply. The tool-calling loop is the same process: the model emits a `<tool_call>` block, the code runs the tool and appends the result, and the model continues.
 
 **Where this lives in the code**
 
