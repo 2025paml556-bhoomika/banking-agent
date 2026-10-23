@@ -13,47 +13,35 @@ PCAM ZG516 Applied Generative AI. Group Major Project, Assignment 1.
 
 **Target user**
 
-- A customer of an online bank who contacts support through a chat window.
-- The customer is not a technical user. They describe the problem in their own words.
+- A customer of an online bank, who contacts customer support through a live chat and describes the problem in their own words.
 
 **Problem**
 
-- The customer writes in free text. Examples from the dataset: "I lost my card, please block it", "Why is my top-up still outstanding?", "How many miles away is the ATM?".
-- The bank must route each message to the right action out of 77 possible intents.
-- Many intents are close in meaning. For example, `card_arrival` and `card_delivery_estimate`, or `verify_my_identity` and `why_verify_identity`. A wrong intent means a wrong action.
-- Today this routing is done by menus, keyword rules, or a human agent. Menus frustrate customers. Keyword rules break on paraphrase and typos. Human triage is slow and costly.
+- The customer writes in free text ("I lost my card, please block it", "Why is my top-up still outstanding?") and the bank must route each message to the right one of 77 intents.
+- Today this is done by menus, keyword rules, or a human agent. Menus frustrate, keyword rules break on paraphrase and typos, human triage is slow and costly.
 
 **Application scenario**
 
-- A first-line support assistant that handles one message end to end:
-  1. understand what the customer wants (intent),
-  2. trigger the matching backend action (tool call),
-  3. tell the customer what happened (reply).
-- When the assistant is not sure, it must say so and ask the customer to rephrase. It must not guess, because a guess can trigger a wrong action such as blocking a card.
+- A first-line assistant that handles one message end to end: identify the intent, trigger the matching action (tool call), tell the customer what happened.
+- When not sure, it asks the customer to rephrase rather than guess, since a wrong guess can trigger a wrong action such as blocking a card.
 
 **Expected input**
 
-- One customer message, plain text.
-- Typically 5 to 20 words. Informal grammar and typos are common ("verfiy", "I tired to deposit").
-- No account data or conversation history. Single turn.
+- One plain-text message, typically 5 to 20 words, with informal grammar and typos ("verfiy"). The assistant gets no account data (who the customer is, balance, transactions) and no conversation history (no earlier turns, no follow-up questions); it must work from the words of this one message alone.
 
 **Expected output**
 
-- An intent label: exactly one of the 77 BANKING77 intent names, or an explicit "could not understand" result.
-- A structured tool call with that intent as the argument, in the form a bank's own systems (card system, payments system, account database) could consume. In this project those systems are simulated by a lookup table in `main.py` that returns a fixed result and a reference number for each intent; no real account is touched.
-- A reply to the customer of two or three sentences. The reply reports the result of the action and a reference number when an action was done. It must not claim anything that the tool result does not show.
+- An intent label: one of the 77 BANKING77 names, or an explicit "could not understand".
+- A structured tool call with that intent as the argument. In a real bank this would go to the card, payments, or account systems; in this project it goes to a simulated lookup table in `main.py` that returns a fixed result and a reference number.
+- A two- or three-sentence reply that reports the tool result and the reference number, and claims nothing the tool result does not show.
 
 **Why a Generative-AI / LLM solution is appropriate**
 
-- The input is open text. A pretrained language model already understands paraphrase ("block my card" and "my card was stolen" point to the same intent) and tolerates typos. Rule-based systems do not.
-- The output includes natural language. The reply to the customer must be fluent and must be grounded in the tool result. A generative model produces this directly. A pure classifier cannot write the reply.
-- We can change the model's behaviour without training it. There are two ways to make a model do a task. One is training: update its weights with thousands of labelled examples, which needs a GPU, time, and new data every time the bank adds an intent. The other is to leave the weights alone and change only what we give the model at run time. We had no GPU budget and no training data for new intents, so we needed the second way. An LLM supports it through four levers, and this project studies each one:
-  - the prompt: instructions, examples, retrieved context,
-  - decoding settings: greedy or sampling,
-  - output schemas: JSON with a fixed list of the 77 allowed intents,
-  - tool calling: the model works with a backend instead of answering from memory.
-- One model does all three jobs. The assistant must pick the intent, take part in the tool call, and write the reply. A classical setup needs three separate parts for this: a classifier, a rules layer, and a text template. One instruction-tuned LLM does all three, so there is one model to load, test, and deploy.
-- We keep a classical classifier as a bar to beat. An LLM accuracy number alone says nothing. So we trained the simplest standard classifier (TF-IDF features plus logistic regression) on the same data and scored it on the same 100 messages: 0.79. The LLM must beat 0.79 to justify its use. Early LLM versions did not (0.41 to 0.44). The final version did (0.84).
+- Open-text input. A pretrained LM already handles paraphrase ("block my card" and "my card was stolen" mean the same) and typos. Rules do not.
+- Natural-language output. The reply must be fluent and grounded in the tool result. A classifier cannot write it; a generative model can.
+- No training needed. We had no GPU, no time budget, and no data for new intents. An LLM is steered at run time through four levers, each studied in this report: the prompt, decoding settings, output schemas, and tool calling.
+- One model, three jobs. Intent, tool call, and reply would need a classifier, a rules layer, and a template in a classical setup. One instruction-tuned LLM does all three.
+- A bar to beat. The simplest classical classifier (TF-IDF + logistic regression) scores 0.79 on the same 100 messages. Early LLM versions scored 0.41 to 0.44; the final version scores 0.84.
 
 ## 2. Dataset Understanding
 
