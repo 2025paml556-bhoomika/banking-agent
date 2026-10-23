@@ -290,17 +290,9 @@ def parse_intent(output):
 | Outputs with a "preamble": an extra sentence before the label, such as `The intent for the message "..." is:` (counted as outputs that start with "The") | 57 |
 | Reference: TF-IDF + logistic regression, same 100 rows | 0.79 |
 
-**What the model actually wrote**
+**Where the outputs are**
 
-Five real outputs from `evaluation/results/results_baseline.csv`. The parser's reading is in the last column.
-
-| Message | Model output | Expected | Parsed as |
-|---|---|---|---|
-| How long should my new card take to arrive? | `Card_arrival` | card_arrival | card_arrival, correct |
-| How do I track my card? | `The intent for the message "How do I track my card?" is:` ⏎⏎ `Card_delivery_estimate` | card_arrival | card_delivery_estimate, wrong: near-synonym |
-| Why would I have a pending payment? | `The intent for the message "Why would I have a pending payment?" is:` ⏎⏎ `pending_transfer` | pending_card_payment | pending_transfer, wrong: favourite label |
-| How can I top up with this cheque I got? | `Top_up_by_cheque_or_cash_deposit` | top_up_by_cash_or_cheque | nothing: invented name |
-| How many miles away is the ATM? | `The given message "How many miles away is the ATM?" does not match any of the provided intents. It seems to be asking about the distance between an ATM` | atm_support | nothing: refusal, then cut off at 32 tokens |
+- All 100 model outputs, with the gold label, the parsed intent, and a correct flag, are in `evaluation/results/results_baseline.csv` (columns `text, category, output, predicted, correct`). One typical output, for "How do I track my card?": `The intent for the message "How do I track my card?" is:` followed by `Card_delivery_estimate`.
 
 **What the 59 errors look like**
 
@@ -378,28 +370,21 @@ Intent:
 
 - 22 of the 100 rows were correct under all five prompts. 40 were wrong under all five. The hard rows are hard for every prompt.
 
-**The same four messages under all five prompts**
+**Where the outputs are**
 
-These are real outputs from `evaluation/results/results_<style>.csv`. They show what each style changes and what it does not.
-
-| Message, expected | `zero_shot` | `role` | `constraint` | `few_shot` | `few_shot_constraint` |
-|---|---|---|---|---|---|
-| How do I track my card? → `card_arrival` | `The intent for the message "..." is:` ⏎ `Card_delivery_estimate` | `The intent for this message is "get_physical_card". The customer is asking about ...` (cut off) | `card_delivery_estimate` | `card_delivery_estimate` | `card_delivery_estimate` |
-| How many miles away is the ATM? → `atm_support` | `The given message "..." does not match any of the provided intents. ...` (refusal) | same refusal, longer | `atm_support` | `None of the provided messages match ... However, they could potentially relate to: - pending_transfer ...` | `atm_support` |
-| Can I order a virtual card? → `getting_virtual_card` | `get_physical_card` | `get_disposable_virtual_card` | `get_physical_card` | `get_virtual_card` (not a real label) | `get_virtual_card` (not a real label) |
-| Why is it asking me to verify my identity → `why_verify_identity` | `Verify_my_identity` | `Verify_my_identity` | `verify_my_identity` | `verify_my_identity` | `verify_my_identity` |
+- One file per style: `evaluation/results/results_zero_shot.csv`, `results_role.csv`, `results_constraint.csv`, `results_few_shot.csv`, `results_few_shot_constraint.csv`. Same columns as the baseline file, so any message can be compared across the five prompts by its `text`.
 
 **What each style did**
 
 - **Role.** No gain. Accuracy 0.40. It cut the preamble from 57 to 30 but made the remaining outputs longer and more talkative ("The customer is asking about ..."), so more were cut off at 32 tokens. For a classification task the role line gives the model nothing it can use.
-- **Constraint.** Fixed the format completely: preamble 57 to 0, refusals gone (the ATM row became `atm_support`), invented names halved (4 to 2). Accuracy unchanged at 0.40. The model now answers in the right shape and is still wrong about the same rows.
+- **Constraint.** Fixed the format completely: preamble 57 to 0, refusals gone ("How many miles away is the ATM?" became `atm_support` instead of "does not match any of the provided intents"), invented names halved (4 to 2). Accuracy unchanged at 0.40. The model now answers in the right shape and is still wrong about the same rows.
 - **Few-shot.** Best accuracy, 0.43, and the examples removed the preamble by showing the expected shape (57 to 1). But it had a side effect: the model copied the snake_case style of the examples and invented more names that look real but are not in the list, `get_virtual_card`, `top_up_by_cheque`, `refund_not_shown_up`. "No valid intent" rose from 4 to 12.
 - **Few-shot + constraint.** Same accuracy as few-shot, 0.43, with the cleanest output: no preamble, invented names down from 12 to 8. This is the prompt we carried into E3 and E4.
 
 **What the comparison says**
 
 - Instructions fix the format. One constraint line removed every preamble and every refusal. That is cheap and reliable.
-- Instructions do not fix the knowledge. Accuracy moved 0.40 to 0.43 across five prompts, within noise on 100 rows. The verify-identity row in the table above is wrong under all five: the model cannot tell `verify_my_identity` from `why_verify_identity` from the names, and no wording of the instruction tells it.
+- Instructions do not fix the knowledge. Accuracy moved 0.40 to 0.43 across five prompts, within noise on 100 rows. "Why is it asking me to verify my identity" is wrong under all five: the model cannot tell `verify_my_identity` from `why_verify_identity` from the names, and no wording of the instruction tells it.
 - Five random examples teach the shape of the answer, not the boundaries of the labels. The 5 examples cover 4 of 77 intents (Section 2), so for almost every message they show an unrelated intent. They help only with format.
 - 40 rows wrong under every prompt is the strongest evidence in the project that prompt wording is not the lever. It is the reason we went to retrieval (Section 8): give the model examples that are *about the message*, not random ones.
 
@@ -459,19 +444,10 @@ Each sampling run is compared row by row with the greedy run on the same prompt.
 - The "different from greedy" column is the variability. Mild sampling (temperature 0.7) changed 20 of 100 answers; strong sampling (temperature 1.5) changed 42.
 - Most changes did not alter correctness: a different capitalisation, or one wrong label swapped for another wrong label. The flips that did alter correctness went both ways, and at the two strongest settings more went right-to-wrong than wrong-to-right.
 
-**The same messages under all five settings**
+**Where the outputs are**
 
-Real outputs from `evaluation/results/results_decoding_<setting>.csv`.
-
-| Message, expected | `greedy` | `temperature_0.7` | `temperature_1.5` | `top_k_50` | `top_p_0.9` |
-|---|---|---|---|---|---|
-| when does the rate get determined → `exchange_rate` | `exchange_rate` | `exchange_rate` | `unable_to_verify_identity` | `exchange_rate` | `unable_to_verify_identity` |
-| How do I track my card? → `card_arrival` | `card_delivery_estimate` | `card_delivery_estimate` | `Card_delivery_estimate` | `card_delivery_estimate` | `card_delivery_estimate` |
-| I can't get my card to work. → `card_not_working` | `card_not_working` | same | same | same | same |
-
-- Row 1 shows the damage sampling can do: a correct label becomes an unrelated one when the distribution is flattened.
-- Row 2 shows that sampling does not rescue a near-synonym error. The model is confident in the wrong label, so every setting returns it.
-- Row 3 shows that for an easy message the distribution is so peaked that no setting changes it.
+- One file per setting: `evaluation/results/results_decoding_greedy.csv`, `results_decoding_temperature_0.7.csv`, `results_decoding_temperature_1.5.csv`, `results_decoding_top_k_50.csv`, `results_decoding_top_p_0.9.csv`. Same columns as before.
+- Three patterns are visible when a message is compared across the files. A correct label destroyed by sampling: "when does the rate get determined" is `exchange_rate` under greedy and `unable_to_verify_identity` at temperature 1.5. A confident wrong label that no setting rescues: "How do I track my card?" is `card_delivery_estimate` under all five. An easy message that nothing changes: "I can't get my card to work." is `card_not_working` under all five.
 
 **What high temperature produced**
 
@@ -617,15 +593,11 @@ All 14 schema failures were the same kind: a plausible intent name that is not i
 | `top_up_by_cheque` | 2 | `top_up_by_cash_or_cheque` |
 | `exchange_currency` | 1 | `exchange_via_app` |
 
-**Real outputs**
+**Where the outputs are**
 
-| Message | Model output | Validator says | Expected |
-|---|---|---|---|
-| How long should my new card take to arrive? | `{"intent": "card_arrival", "confidence": 0.9}` | valid | card_arrival, correct |
-| How do I track my card? | `{"intent": "card_delivery_estimate", "confidence": 0.9}` | valid | card_arrival, wrong but legal |
-| Can I order a virtual card? | ```` ```json ```` ⏎ `{"intent": "get_virtual_card", "confidence": 0.95}` ⏎ ```` ``` ```` | `schema: $.intent = 'get_virtual_card' is invalid` | getting_virtual_card |
-
-The third row is the case the schema exists for. Without it, `get_virtual_card` looks like a real label to a human and to a loose parser. With it, the system gets a precise error and can ask the customer to rephrase instead of calling the backend with a value it does not know.
+- All 100 JSON outputs, with the validator's error string (empty when valid), the parsed intent, and the confidence value, are in `evaluation/results/results_structured.csv` (columns `text, category, output, error, predicted, confidence, correct`).
+- One validated example, "How long should my new card take to arrive?": output `{"intent": "card_arrival", "confidence": 0.9}`, error empty, correct.
+- One rejected example, "Can I order a virtual card?": output `{"intent": "get_virtual_card", "confidence": 0.95}`, error `schema: $.intent = 'get_virtual_card' is invalid`. This is the case the schema exists for. Without it, `get_virtual_card` looks like a real label to a human and to a loose parser. With it, the system gets a precise error and can ask the customer to rephrase instead of calling the backend with a value it does not know.
 
 **What the confidence field told us**
 
