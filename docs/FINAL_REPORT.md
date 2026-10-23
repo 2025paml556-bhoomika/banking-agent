@@ -96,18 +96,18 @@ The first three rows show the near-synonym problem: two labels, three messages, 
 
 Every experiment is scored on the same 100 development rows. What changes is how the train file is used to help the model.
 
-| Experiment | Scored on | How the train file is used | Train rows seen by the model per message |
-|---|---|---|---|
-| E1 Baseline | Development subset, 100 rows | Only to read the list of 77 intent names | 0 |
-| E2 Prompt comparison: `zero_shot`, `role`, `constraint` | Development subset | Only the 77 names | 0 |
-| E2 Prompt comparison: `few_shot`, `few_shot_constraint` | Development subset | 5 rows picked once at random (`random_state=0`) and shown as solved examples in every prompt | 5, the same 5 for all messages |
-| E3 Decoding comparison | Development subset | Same 5 fixed rows as E2 `few_shot_constraint` | 5, same 5 |
-| E4 Structured output | Development subset | Same 5 fixed rows, rewritten as JSON answers | 5, same 5 |
-| Adaptation: retrieval few-shot | Development subset | For each message, the 5 train rows most similar to it (TF-IDF cosine) are picked from all 10,003 and shown as examples | 5, different for each message |
-| Reference: TF-IDF + logistic regression | Development subset | Trained on all 10,003 rows | all, through training |
-| Reference: 5-NN vote | Development subset | Same 5 retrieved rows as the retrieval experiment; majority label, no LLM | 5 |
-| E7 Final system, held-out run | **Held-out subset**, 100 rows | Same as retrieval few-shot | 5, different for each message |
-| E7 Final system, agent demo | 4 hand-written messages | Same as retrieval few-shot | 5 |
+| Experiment | What it tests | Scored on | How the train file is used | Train rows seen by the model per message |
+|---|---|---|---|---|
+| E1 Baseline | What the model does with the simplest prompt: task line, 77 names, message | Development subset, 100 rows | Only to read the list of 77 intent names | 0 |
+| E2 Prompt comparison: `zero_shot`, `role`, `constraint` | Whether a system role or an output rule changes accuracy or format | Development subset | Only the 77 names | 0 |
+| E2 Prompt comparison: `few_shot`, `few_shot_constraint` | Whether showing solved examples helps | Development subset | 5 rows picked once at random (`random_state=0`) and shown as solved examples in every prompt | 5, the same 5 for all messages |
+| E3 Decoding comparison | Whether greedy, temperature, top-k, or top-p changes quality or stability | Development subset | Same 5 fixed rows as E2 `few_shot_constraint` | 5, same 5 |
+| E4 Structured output | Whether the model can answer in JSON that passes a schema with the 77 names | Development subset | Same 5 fixed rows, rewritten as JSON answers | 5, same 5 |
+| Adaptation: retrieval few-shot | Whether examples chosen for the message, not at random, fix the near-synonym errors | Development subset | For each message, the 5 train rows most similar to it (TF-IDF cosine) are picked from all 10,003 and shown as examples | 5, different for each message |
+| Reference: TF-IDF + logistic regression | What a trained classical classifier scores on the same rows: the bar to beat | Development subset | Trained on all 10,003 rows | all, through training |
+| Reference: 5-NN vote | How much of the retrieval result comes from the examples alone, without the LLM | Development subset | Same 5 retrieved rows as the retrieval experiment; majority label, no LLM | 5 |
+| E7 Final system, held-out run | The honest accuracy of the chosen system on rows no decision was made on | **Held-out subset**, 100 rows | Same as retrieval few-shot | 5, different for each message |
+| E7 Final system, agent demo | Whether the full loop (classify, tool call, reply) works end to end | 4 hand-written messages | Same as retrieval few-shot | 5 |
 
 *Note on the two reference rows.* They are not part of the product. They exist to answer "compared to what?". TF-IDF + logistic regression is the textbook text classifier: it trains in seconds on a CPU with no prompt and no GPU, and it was the classifier in the first version of this project before the LLM took over intent detection. Its 0.79 is the bar the LLM must pass to justify its cost. The 5-NN vote uses the same 5 retrieved examples as the retrieval experiment but takes a majority label without the LLM; it shows how much of the retrieval result comes from the examples alone (0.77) and how much the LLM adds on top (0.84).
 
