@@ -234,7 +234,7 @@ The model is `Qwen/Qwen2.5-1.5B-Instruct`, loaded with Hugging Face `transformer
 - `src/llm.py`: `AutoTokenizer` (stage 1), `AutoModelForCausalLM` (stages 2 to 4), `model.generate` with `max_new_tokens` and the decoding settings (stage 5). One function, `generate()`, is the only place the model is called.
 - Notebook section "2. Model": runs the first four stages by hand and prints the token IDs, the embedding shape, and the top-5 next-token probabilities quoted above.
 
-## 5. Baseline System
+## 5. Experiment1 - Baseline System
 
 **Purpose**
 
@@ -323,7 +323,7 @@ Five real outputs from `evaluation/results/results_baseline.csv`. The parser's r
 - The accuracy problem (near-synonyms, favourite labels) does not look like an instruction problem. The model does not know the dataset's boundaries between similar intents. That became the few-shot prompts in E2 and, when those were not enough, the retrieval experiment.
 - The decoding setting was fixed at greedy here; E3 checks whether any sampling setting does better.
 
-## 6. Prompt Engineering
+## 6. Experiment 2 - Prompt Engineering
 
 **Question we wanted to answer**
 
@@ -408,7 +408,7 @@ These are real outputs from `evaluation/results/results_<style>.csv`. They show 
 - Carry `few_shot_constraint` forward as the fixed prompt for the decoding comparison (E3) and the structured-output experiment (E4).
 - Keep the constraint line in every later prompt, including the final system.
 
-## 7. Decoding Study
+## 7.Experiment 3 - Decoding Study
 
 **Question we wanted to answer**
 
@@ -563,7 +563,7 @@ The model answers `card_arrival`. Under every earlier prompt it had answered `ca
 - The final system uses retrieval few-shot with the constraint line and greedy decoding. This is the classifier inside `classify_intent` in `main.py`.
 - Fine-tuning (PEFT) is recorded as an option, not pursued: it was optional, not approved, not runnable on our hardware, and the target was already met.
 
-## 9. Structured Output
+## 9. Experiment 4 - Structured Output
 
 **Why we need it**
 
