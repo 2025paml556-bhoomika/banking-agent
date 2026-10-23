@@ -298,11 +298,11 @@ def parse_intent(output):
 
 | Group | About how many | Example | Why it happens | Experiment that tests the fix |
 |---|---|---|---|---|
-| Near-synonym intent | 35 | track my card → `card_delivery_estimate`, not `card_arrival` | The model sees 77 names and no definition of where one ends and the next begins | E2 few-shot, then retrieval |
-| Favourite label | 10 | pending payment → `pending_transfer` | Short generic names attract a small model: `pending_transfer`, `top_up_failed`, `get_physical_card`, `activate_my_card` absorb unrelated messages | E2 few-shot, retrieval |
-| Wrong focus in the message | 6 | "My top-up for Google Pay isn't working" → `top_up_failed`, not `apple_pay_or_google_pay` | The model locks on one word and ignores the rest | E2 few-shot, role |
-| Invented intent name | 3 | `top_up_verification`, `Top_up_by_cheque_or_cash_deposit` | The model generates text; it composes a plausible name instead of copying one from the list | E2 constraint, E4 JSON schema |
-| Refusal | 2 | "does not match any of the provided intents" | The model prefers honesty to a forced choice; a classifier must pick the closest | E2 constraint ("always choose exactly one") |
+| Near-synonym intent | 35 | track my card → `card_delivery_estimate`, not `card_arrival` | The prompt gives only the 77 names. `card_arrival` and `card_delivery_estimate` both read as "a card on its way"; nothing says the dataset uses the first for "where is my card" and the second for "how long will it take". The model has to guess the boundary and guesses wrong about half the time. This is missing knowledge, not a missing instruction | E2 few-shot, then retrieval |
+| Favourite label | 10 | pending payment → `pending_transfer` | Some labels are short and general (`pending_transfer`, `top_up_failed`, `get_physical_card`, `activate_my_card`). When a message contains "pending", a small model reaches for `pending_transfer` even if the message is about a card payment. The general label is a safe-looking default and absorbs messages that belong to more specific neighbours | E2 few-shot, retrieval |
+| Wrong focus in the message | 6 | "My top-up for Google Pay isn't working" → `top_up_failed`, not `apple_pay_or_google_pay` | The message has "top-up" and "isn't working", so the model answers `top_up_failed`. The real topic is Google Pay. The model matched the first strong keyword and did not weigh the whole sentence | E2 few-shot, role |
+| Invented intent name | 3 | `top_up_verification`, `Top_up_by_cheque_or_cash_deposit` | A language model produces tokens; it does not select from a list. When the message says "top-up" and "verified", it builds `top_up_verification` from those words because it looks like the other labels. The real label is `verify_top_up`. No wording fixes this; only a hard check on the output does | E2 constraint, E4 JSON schema |
+| Refusal | 2 | "does not match any of the provided intents" | Instruction-tuned models are trained to say when nothing fits. For "How many miles away is the ATM?" the model judged that no intent matched and said so. Reasonable for a chatbot, wrong for a classifier, which must always return the closest label | E2 constraint ("always choose exactly one") |
 
 **Two things we learned while building it**
 
