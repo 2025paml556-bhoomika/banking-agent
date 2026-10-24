@@ -789,52 +789,28 @@ Assistant: Sorry, I could not understand your request. Could you say it in a dif
 
 **Sequence of one request**
 
-The full path of one customer message through the final system (`main.py`). Time runs downward. Solid arrows are function calls; dashed arrows are returns.
+The full path of one customer message through the final system (`main.py`).
 
-```
- Customer        handle()          classify_intent()      retrieve()     LLM (generate)     handle_intent()
-    │                │                     │                  │               │                   │
-    │  message       │                     │                  │               │                   │
-    │───────────────►│                     │                  │               │                   │
-    │                │  message            │                  │               │                   │
-    │                │────────────────────►│                  │               │                   │
-    │                │                     │  message         │               │                   │
-    │                │                     │─────────────────►│               │                   │
-    │                │                     │  5 nearest train rows            │                   │
-    │                │                     │◄─ ─ ─ ─ ─ ─ ─ ─ ─│               │                   │
-    │                │                     │  prompt: task line with all 77 intent names          │
-    │                │                     │          + constraint + 5 examples + message         │
-    │                │                     │─────────────────────────────────►│                   │
-    │                │                     │  "card_arrival"  (greedy, 32 tokens)                 │
-    │                │                     │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│                   │
-    │                │                     │                                  │                   │
-    │                │                     │  parse_intent, validate against the 77-name schema   │
-    │                │                     │                                  │                   │
-    │                │  {"intent": ...}  or  {"error": ...}                   │                   │
-    │                │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                                  │                   │
-    │                │                                                        │                   │
-    │                │  if error: ─────────────────────────────────────────────────────────────────────┐
-    │  "Sorry, I could not understand your request. Could you say it in a different way?"            │
-    │◄─ ─ ─ ─ ─ ─ ─ ─│◄───────────────────────────────────────────────────────────────────────────────┘
-    │                │                                                        │                   │
-    │                │  intent                                                │                   │
-    │                │───────────────────────────────────────────────────────────────────────────►│
-    │                │  {intent, status: done | information | unsupported, result, [reference]}  │
-    │                │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│
-    │                │                                                        │                   │
-    │                │  chat history: system prompt, message, both tool calls, both tool results  │
-    │                │───────────────────────────────────────────────────────►│                   │
-    │                │  reply text  (sampling, temperature 0.7, 80 tokens)    │                   │
-    │                │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                   │
-    │  reply         │                                                        │                   │
-    │◄─ ─ ─ ─ ─ ─ ─ ─│                                                        │                   │
-    │                │                                                        │                   │
-```
+![Sequence of one request through main.py](images/sequence.png)
 
-- The LLM is called twice per request: once inside `classify_intent` to produce the label (greedy), once at the end to write the reply (sampled). Both calls go through the same `generate()` in `src/llm.py`.
+*Source: `docs/images/sequence.mmd` (Mermaid). Re-render with `npx -y @mermaid-js/mermaid-cli -i docs/images/sequence.mmd -o docs/images/sequence.png -b white -s 2`.*
+
+The same flow as numbered steps:
+
+1. The customer message enters `handle()`.
+2. `handle()` calls the first tool, `classify_intent(message)`.
+3. `classify_intent` calls `retrieve(message)`, which returns the 5 train rows most similar to the message (TF-IDF cosine).
+4. `classify_intent` builds the prompt: the task line with all 77 intent names, the constraint line, the 5 retrieved examples, the message. It sends the prompt to the LLM with greedy decoding, 32 tokens.
+5. The LLM returns a label, for example `card_arrival`. `parse_intent` extracts it and it is validated against the schema whose `enum` is the 77 names.
+6. `classify_intent` returns `{"intent": ...}` to `handle()`, or `{"error": ...}` if no valid label was found.
+7. If error: `handle()` returns the fixed sentence "Sorry, I could not understand your request. Could you say it in a different way?" to the customer. No second tool, no second LLM call.
+8. If valid: `handle()` calls the second tool, `handle_intent(intent)`, which returns `{intent, status, result}` and a `reference` when the status is `done`.
+9. `handle()` sends the LLM the full chat history: the system prompt, the customer message, both tool calls, and both tool results, with the tool definitions attached. Sampling, temperature 0.7, 80 tokens.
+10. The LLM writes the reply from that transcript, and `handle()` returns it to the customer.
+
+- The LLM is called twice per request: step 4 for the label (greedy), step 9 for the reply (sampled). Both go through the same `generate()` in `src/llm.py`.
 - `handle()` decides the order. The model never chooses whether or when a tool runs.
-- Each tool call and its result are appended to the chat history by `call_tool()` before the next step, so the final LLM call sees the complete transcript.
-- The error branch leaves after the first tool. No `handle_intent` call, no second LLM call, a fixed sentence to the customer.
+- `call_tool()` appends each tool call and its result to the chat history before the next step, so the final LLM call sees the complete transcript.
 
 ## 11. Programmatic Prompting
 
