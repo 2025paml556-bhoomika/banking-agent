@@ -141,7 +141,7 @@ reply  ──  LLM reads the tool transcript, writes 2-3 sentences, temperature 
 | Structured output | `src/structured.py` | JSON schema and validation |
 | Retrieval | `src/retrieval.py` | TF-IDF nearest examples; the adopted prompt |
 | Final assistant | `main.py` | Two tools, code-driven orchestration, reply |
-| Notebooks | `notebooks/banking_agent.ipynb`, `notebooks/banking_agent_full.ipynb` | Fast (saved results) and full-run versions |
+| Notebook | `notebooks/banking_agent.ipynb` | Runs every experiment, shows results, live demo |
 
 **Design principle.** One `generate()` function and one fixed evaluation subset. Every experiment changes one thing and measures on the same 100 rows. The final system hard-codes the winning choice from each experiment.
 
@@ -390,7 +390,7 @@ Across the four main systems (zero-shot, few-shot + constraint, JSON, retrieval)
 
 The held-out score is 0.07 lower. Part of this is normal optimism from selecting on the development set; part is sampling noise, since the 95% interval for 100 rows is about ±0.08. The held-out set also covers more intents (57 against 53), so it has more near-synonym pairs. 0.77 is the number to quote for the final system. It is level with the TF-IDF + logistic-regression reference on the development set (0.79), not clearly above it.
 
-**Reproducibility.** The full-run notebook re-executed every experiment and reproduced every number in this table. Greedy runs are bit-identical; seeded sampling runs are identical on the same hardware.
+**Reproducibility.** The notebook re-executed every experiment and reproduced every number in this table. Greedy runs are bit-identical; seeded sampling runs are identical on the same hardware.
 
 ## 12. Failure Analysis and Responsible-Use Considerations
 
@@ -485,7 +485,7 @@ uv run -m evaluation.final_eval         # final system on the held-out subset, ~
 uv run main.py               # final assistant, interactive
 ```
 
-Notebooks: `notebooks/banking_agent.ipynb` (loads saved results, ~1 min) and `notebooks/banking_agent_full.ipynb` (recomputes everything, ~21 min on an M3 Mac, ~8 min on a Colab T4). On Colab, uncomment `os.environ["MODEL"] = "Qwen/Qwen2.5-3B-Instruct"` in the first cell to run the larger model.
+Notebook: `notebooks/banking_agent.ipynb` recomputes every experiment (~21 min on an M3 Mac, ~8 min on a Colab T4); skip the `%run` cells to load the saved results in ~1 min. On Colab, uncomment `os.environ["MODEL"] = "Qwen/Qwen2.5-3B-Instruct"` in the first cell to run the larger model.
 
 Supporting documents in the repository: `PROGRESS.md` (step-by-step log with explanations), `FAILURES.md` (full evaluation and failure analysis), `GAPS.md` (initial gap analysis).
 

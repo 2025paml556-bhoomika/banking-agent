@@ -951,7 +951,7 @@ The classifier of the final system (`classify_intent` in `main.py`) was run once
 
 **Reproducibility check**
 
-- The full-run notebook (`notebooks/banking_agent_full.ipynb`) re-executed every experiment from scratch and reproduced every number in the tables above. Greedy runs are identical to the character; seeded sampling runs are identical on the same hardware.
+- The notebook (`notebooks/banking_agent.ipynb`) re-executed every experiment from scratch and reproduced every number in the tables above. Greedy runs are identical to the character; seeded sampling runs are identical on the same hardware.
 
 **Failure analysis: the seven failure types**
 

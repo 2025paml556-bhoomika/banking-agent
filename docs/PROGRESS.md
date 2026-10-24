@@ -24,7 +24,7 @@ assistant but almost no experiments.
 [done] 7. Adaptation: retrieval few-shot  accuracy 0.84 (from 0.43)
 [done] 8. E6 failure analysis  FAILURES.md, 7 failure types, 11 cases
 [done] 9. E7 final system      main.py on one HF model, code-driven tool order
-[done] 10. notebook            banking_agent.ipynb, 33 cells, runs in about 1 minute
+[done] 10. notebook            banking_agent.ipynb, 46 cells, runs every script, about 21 minutes
 [done] 11. report draft        REPORT.md, 14 sections, about 6300 words
 [next] 12. group review of report, slides, contribution statement
 ```
@@ -465,37 +465,37 @@ timeframe]". A real backend would return the data the reply needs.
 environment variable)
 
 **What we did.** One notebook with ten sections in the order of the
-workflow: dataset, model and architecture, E1, E2, E3, E4, retrieval, E6,
-E7 demo, summary. Each code cell imports from the existing `.py` files.
-No experiment code is copied into the notebook, so the scripts and the
+workflow: dataset and subsets, model and architecture, E1, E2, E3, E4,
+classical reference and retrieval, E6, E7 demo and held-out evaluation,
+summary. Each code cell imports from the existing `.py` files. No
+experiment code is copied into the notebook, so the scripts and the
 notebook cannot drift apart.
 
-**How it runs.** Result tables are loaded from the saved `results_*.csv`
-files, so "Run all" takes about one minute including the model load and
-the live demo. Each experiment has an optional rerun cell
-(`# %run baseline.py` and so on) that a reader can uncomment to call the
-model again on the 100 rows.
+**How it runs.** Every script in the README "Run the experiments" table
+has a `%run -m <module>` cell: `evaluation.make_eval_subset`,
+`src.baseline`, `src.prompts`, `src.decoding`, `src.structured`,
+`evaluation.reference_classifier`, `src.retrieval`, and
+`evaluation.final_eval`. Each is followed by a results cell that reads
+the `results_*.csv` file the script wrote. No number in a results cell is
+typed by hand. "Run all" recomputes everything in about 21 minutes on the
+M3 Mac. A reader who skips the `%run` cells gets the tables and the live
+demo in about one minute.
 
 **Colab.** The first cell clones the GitHub repository and installs the
 dependencies when it detects Colab. Locally it does nothing.
-`os.environ["MODEL"] = "Qwen/Qwen2.5-3B-Instruct"` in the same cell
-switches every later cell to the larger model, for the comparison run on
-a Colab GPU.
+`os.environ["MODEL"] = "<Hugging Face model id>"` in the same cell
+switches every later cell to that model. The model needs a chat template
+that accepts `tools`, because `main.py` passes the tool schemas to it.
 
 **Architecture cell (Req 4).** Shows the four stages on a project
 message: tokenization (`How do I track my card?` is 7 tokens with their
 IDs), embeddings (shape 1 x 7 x 1536), the LM head (top-5 next-token
 probabilities), and greedy generation.
 
-**Verified.** Executed end to end with `nbclient`: 33 cells, 0 errors,
-outputs saved in the file.
-
-**Full-run version.** `banking_agent_full.ipynb` has the same sections,
-but every experiment cell calls the model live (`%run baseline.py` and so
-on) before its results cell. "Run all" recomputes everything: 38 cells,
-about 21 minutes on the M3 Mac, 0 errors, same numbers as the saved
-CSVs. Use this one when a reader wants proof, the fast one when they want
-to read.
+**Verified.** The 1.5B run was executed end to end with `nbclient`:
+0 errors, same numbers as the saved CSVs, outputs saved in the file. The
+subset, reference-classifier, and held-out cells were added after that run
+and have no saved outputs yet; the next full run on Colab fills them.
 
 ---
 

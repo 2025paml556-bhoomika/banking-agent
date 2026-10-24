@@ -85,14 +85,18 @@ Use Google Colab for it.
 
 ## Notebooks
 
-| Notebook | What it does | Time |
-|---|---|---|
-| `notebooks/banking_agent.ipynb` | Loads the saved CSV results, shows the tables, runs the live demo | 1 min |
-| `notebooks/banking_agent_full.ipynb` | Recomputes every experiment from scratch | 21 min |
+`notebooks/banking_agent.ipynb` runs every command in the table above in
+order, shows the result tables, and runs the live demo. "Run all" takes
+about 21 minutes on an M3 Mac. The outputs are saved in the file, so you
+can read the results without running it. To run it in about one minute,
+skip the `%run -m <module>` cells; the result cells read the saved CSV
+files.
 
-Both notebooks import the code from `main.py` and the `src/` modules. The first cell
+The notebook imports the code from `main.py` and the `src/` modules. The first cell
 installs the dependencies when it runs on Colab and changes the working
-directory to the project root.
+directory to the project root. To run a different model on Colab, set
+`os.environ["MODEL"]` in that cell; the notebook clones the GitHub
+repository, so push your changes first.
 
 To open a notebook locally, open it in VS Code or Cursor and select the
 `.venv` Python as the kernel. The `ipykernel` package is already installed
