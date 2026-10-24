@@ -234,7 +234,7 @@ The model is `Qwen/Qwen2.5-1.5B-Instruct`, loaded with Hugging Face `transformer
 - `src/llm.py`: `AutoTokenizer` (stage 1), `AutoModelForCausalLM` (stages 2 to 4), `model.generate` with `max_new_tokens` and the decoding settings (stage 5). One function, `generate()`, is the only place the model is called.
 - Notebook section "2. Model": runs the first four stages by hand and prints the token IDs, the embedding shape, and the top-5 next-token probabilities quoted above.
 
-## 5. Experiment1 - Baseline System
+## 5. Experiment 1 - Baseline System
 
 **Purpose**
 
@@ -319,7 +319,11 @@ def parse_intent(output):
 
 **Question we wanted to answer**
 
-- The baseline had two kinds of problem: format (preamble, invented names, refusals) and accuracy (near-synonym confusion). Can better instructions fix either?
+The baseline had two kinds of problem: 
+- format (preamble, invented names, refusals) 
+-  accuracy (near-synonym confusion). 
+
+Can better instructions fix either?
 
 **Setup**
 
@@ -393,7 +397,7 @@ Intent:
 - Carry `few_shot_constraint` forward as the fixed prompt for the decoding comparison (E3) and the structured-output experiment (E4).
 - Keep the constraint line in every later prompt, including the final system.
 
-## 7.Experiment 3 - Decoding Study
+## 7. Experiment 3 - Decoding Study
 
 **Question we wanted to answer**
 
@@ -468,7 +472,7 @@ At temperature 1.5, 7 outputs contained no valid label. They are not near-misses
 - Greedy for every intent classification: E4, the retrieval experiment, and the final system.
 - Temperature 0.7 for the free-text customer reply only.
 
-## 8. Adaptation Decision
+## 8. Experiment 4 - Adaptation Decision
 
 **Where we stood**
 
@@ -515,17 +519,38 @@ The model answers `card_arrival`. Under every earlier prompt it had answered `ca
 
 **Results**
 
-| System | Accuracy on the 100 development rows |
-|---|---|
-| LLM, 5 random examples (`few_shot_constraint`, Section 6) | 0.43 |
-| 5-nearest-neighbour vote on the retrieved rows, no LLM | 0.77 |
-| TF-IDF + logistic regression, trained on all 10,003 rows | 0.79 |
-| **LLM, 5 retrieved examples** | **0.84** |
+Four systems, all scored on the same 100 development rows. The first row is where Section 6 ended; the last row is the adaptation. The two middle rows are the reference points: one shows what the retrieved examples are worth on their own, the other what a trained classical classifier reaches.
 
-- The correct label was among the 5 retrieved examples for 94 of the 100 messages.
-- No valid intent: 3 (down from 8).
-- Compared row by row with `few_shot_constraint`: 42 rows went from wrong to right, 1 went from right to wrong.
-- Compared with the 5-NN vote on the same examples: the LLM was right where the vote was wrong in 12 rows, and wrong where the vote was right in 5.
+| System | How it decides the intent | Uses the LLM | Trained on the train file | Examples shown per message | Accuracy | No valid intent |
+|---|---|---|---|---|---|---|
+| Before: `few_shot_constraint` (Section 6) | LLM reads 5 random train rows and the message | yes | no | 5, same for every message | 0.43 | 8 |
+| Reference: 5-NN vote | Count the labels of the 5 retrieved train rows; the most common label wins. No model call | no | no | 5, chosen per message | 0.77 | 0 |
+| Reference: TF-IDF + logistic regression | Classical classifier trained once on all 10,003 train rows | no | yes | none | 0.79 | 0 |
+| **After: retrieval few-shot (the adaptation)** | Put the same 5 retrieved train rows and the message into the prompt; the LLM reads them and picks the label | yes | no | 5, chosen per message | **0.84** | 3 |
+
+The 5-NN vote and the adaptation start from the same 5 retrieved rows. The difference is what happens next. The vote only counts labels, so it cannot use the words of the message or of the examples. The LLM reads both. One row where this matters, "Can I make online purchases with my card?": the 5 retrieved rows carry the labels `virtual_card_not_working` (2), `failed_transfer` (1), `disposable_card_limits` (1), `card_acceptance` (1). The vote picks `virtual_card_not_working`, the most frequent. The LLM reads the message, sees that it asks whether the card can be used, and picks `card_acceptance`, which is correct. The vote is a floor: it shows how much accuracy the examples alone provide. Anything above it is the model's contribution.
+
+How often the retriever gave the model a fair chance:
+
+| Measure | Count |
+|---|---|
+| Correct label present among the 5 retrieved examples | 94 of 100 |
+| Correct label absent from all 5 | 6 of 100 |
+
+Row-by-row comparison of the adaptation against the two systems it must beat:
+
+| Comparison | Rows the adaptation got right and the other got wrong | Rows the other got right and the adaptation got wrong | Net |
+|---|---|---|---|
+| Against `few_shot_constraint` (random examples) | 42 | 1 | +41 |
+| Against the 5-NN vote (same examples, no LLM) | 12 | 5 | +7 |
+
+- The first comparison is the effect of choosing the examples by similarity instead of at random.
+- The second comparison is the effect of the LLM itself. If the model only copied the majority label of its examples, the net would be 0.
+
+**Where the outputs are**
+
+- `evaluation/results/results_retrieval.csv`, 100 rows. Columns `text, category, output, predicted, correct` as in the other experiments, plus `knn_vote` and `knn_correct`: the majority label of the same 5 retrieved rows and whether it was right. The two extra columns are what the LLM-versus-vote comparison above is computed from.
+- `evaluation/results/results_tfidf_logreg.csv`, 100 rows: the classical reference, trained on all 10,003 train rows and scored on the same development rows. Produced by `uv run -m evaluation.reference_classifier`, which runs in seconds and needs no model.
 
 **What the result says**
 
@@ -539,7 +564,7 @@ The model answers `card_arrival`. Under every earlier prompt it had answered `ca
 - The final system uses retrieval few-shot with the constraint line and greedy decoding. This is the classifier inside `classify_intent` in `main.py`.
 - Fine-tuning (PEFT) is recorded as an option, not pursued: it was optional, not approved, not runnable on our hardware, and the target was already met.
 
-## 9. Experiment 4 - Structured Output
+## 9. Experiment 5 - Structured Output
 
 **Why we need it**
 

@@ -64,6 +64,7 @@ Times are for an M3 Mac with 8 GB RAM.
 | E3 decoding | `uv run -m src.decoding` | `results_decoding_<setting>.csv` (5 files) | 8 min |
 | E4 structured output | `uv run -m src.structured` | `results_structured.csv` | 3 min |
 | Adaptation (retrieval) | `uv run -m src.retrieval` | `results_retrieval.csv` | 2 min |
+| Reference classifier | `uv run -m evaluation.reference_classifier` | `results_tfidf_logreg.csv` | seconds |
 | Final, held-out | `uv run -m evaluation.final_eval` | `results_heldout.csv` | 2 min |
 
 The experiments use `evaluation/eval_subset.csv` (development set) to compare
@@ -110,6 +111,7 @@ by `uv sync`.
 | `src/retrieval.py` | Adaptation. Five examples chosen by TF-IDF similarity. |
 | `data/train.csv`, `data/test.csv` | BANKING77 train and test splits (local copies from the PolyAI GitHub repository). |
 | `evaluation/make_eval_subset.py` | Creates `eval_subset.csv` and `heldout_subset.csv` from `data/test.csv`. |
+| `evaluation/reference_classifier.py` | TF-IDF + logistic regression, trained on the train split, scored on the development subset. The classical bar to beat. |
 | `evaluation/final_eval.py` | Runs the final system once on the held-out subset. |
 | `evaluation/eval_subset.csv` | Development set: the 100 test messages used by every experiment. |
 | `evaluation/heldout_subset.csv` | Held-out set: 100 other test messages, used only by `final_eval.py`. |
