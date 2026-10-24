@@ -731,7 +731,7 @@ model writes the reply from the tool transcript   (temperature 0.7, max 80 token
 - The first design let the model decide which tool to call and when, which is the usual agent pattern. We tested it with the 1.5B model on 4 messages, twice: once with an instruction to call the tools, once with a worked example in the chat history. Result: 0 of 8 correct sequences.
   - It skipped the tools and answered as a general chatbot.
   - It called `classify_intent`, ignored the result, and invented an argument for `handle_intent`: `BLOCK_CARD_LOST`, which is not an intent.
-  - It claimed an action it never took: "I have blocked your card" with no tool call.
+  - It claimed an action it never took: "I have blocked your card" with no tool call. This is hallucination in its most harmful form for a banking assistant: a confident statement about the world that the system has no evidence for.
 - So the final system fixes the order in code: `classify_intent`, then `handle_intent`, then reply. The model's only free decision is the wording of the reply. This is the same lesson as Sections 6 and 7: with a small model, put control in code and leave language to the model.
 
 **Representative invocations**
@@ -959,7 +959,7 @@ The classifier of the final system (`classify_intent` in `main.py`) was run once
 |---|---|---|---|
 | A. Near-synonym label | A neighbouring intent with almost the same meaning | All systems; about 35 rows in E1, 11 in the final system | Retrieval fixed most; not all |
 | B. Favourite label | Short generic names absorb unrelated messages (`pending_transfer`, `top_up_failed`, `get_physical_card`) | E1, E2 | Retrieval |
-| C. Invented label | A plausible snake_case name not in the list | E2 few-shot (12), E4 (14) | Schema enum rejects it; retrieval reduces it to 3 |
+| C. Invented label | A plausible snake_case name not in the list. This is hallucination in the classification setting: the model generates a value that looks right instead of selecting a real one. The same behaviour produced the invented tool argument `BLOCK_CARD_LOST` (case 11) and the copied confidence value in E4 | E2 few-shot (12), E4 (14) | Schema enum rejects it; retrieval reduces it to 3 |
 | D. Refusal | "None of the provided intents match" | E1 (2), final system (3) | Constraint line reduces it; not removed |
 | E. Preamble | A sentence before the label | E1 (57), role (30) | Constraint or few-shot |
 | F. Retrieval misleads | The nearest examples share words but not meaning; the model follows them | Final system only; 2 rows that E1 got right | A retriever that matches meaning (sentence embeddings) |
