@@ -83,6 +83,11 @@ MODEL=Qwen/Qwen2.5-3B-Instruct uv run -m src.baseline
 The 3B model needs about 6 GB RAM and does not fit on an 8 GB Mac.
 Use Google Colab for it.
 
+`evaluation/results/` holds the results of the default model. Every script
+writes there, so after a run with another model, copy the files to a
+subfolder named after the model, for example `evaluation/results/phi4/`,
+before the next default run overwrites them.
+
 ## Notebooks
 
 `notebooks/banking_agent.ipynb` runs every command in the table above in
@@ -92,11 +97,13 @@ can read the results without running it. To run it in about one minute,
 skip the `%run -m <module>` cells; the result cells read the saved CSV
 files.
 
-The notebook imports the code from `main.py` and the `src/` modules. The first cell
-installs the dependencies when it runs on Colab and changes the working
-directory to the project root. To run a different model on Colab, set
-`os.environ["MODEL"]` in that cell; the notebook clones the GitHub
-repository, so push your changes first.
+The notebook imports the code from `main.py` and the `src/` modules. On
+Colab, the first cell clones the repository into the session, installs the
+dependencies, and links `evaluation/results/` to
+`MyDrive/banking-agent-results/<model name>/` in Google Drive, so the
+result files stay in Drive and nothing else is copied there. To run a
+different model on Colab, set `os.environ["MODEL"]` in that cell; the
+notebook clones the GitHub repository, so push your changes first.
 
 To open a notebook locally, open it in VS Code or Cursor and select the
 `.venv` Python as the kernel. The `ipykernel` package is already installed

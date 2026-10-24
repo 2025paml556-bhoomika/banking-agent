@@ -24,7 +24,7 @@ assistant but almost no experiments.
 [done] 7. Adaptation: retrieval few-shot  accuracy 0.84 (from 0.43)
 [done] 8. E6 failure analysis  FAILURES.md, 7 failure types, 11 cases
 [done] 9. E7 final system      main.py on one HF model, code-driven tool order
-[done] 10. notebook            banking_agent.ipynb, 46 cells, runs every script, about 21 minutes
+[done] 10. notebook            banking_agent.ipynb, 48 cells, runs every script, about 21 minutes
 [done] 11. report draft        REPORT.md, 14 sections, about 6300 words
 [next] 12. group review of report, slides, contribution statement
 ```
@@ -481,8 +481,11 @@ typed by hand. "Run all" recomputes everything in about 21 minutes on the
 M3 Mac. A reader who skips the `%run` cells gets the tables and the live
 demo in about one minute.
 
-**Colab.** The first cell clones the GitHub repository and installs the
-dependencies when it detects Colab. Locally it does nothing.
+**Colab.** The first cell clones the GitHub repository into the session,
+installs the dependencies, and links `evaluation/results/` to
+`MyDrive/banking-agent-results/<model name>/` in Google Drive. The result
+CSV files are written to Drive directly and stay there after the session
+ends; the code and data are not copied. Locally the cell does nothing.
 `os.environ["MODEL"] = "<Hugging Face model id>"` in the same cell
 switches every later cell to that model. The model needs a chat template
 that accepts `tools`, because `main.py` passes the tool schemas to it.
