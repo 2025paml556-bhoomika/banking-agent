@@ -103,11 +103,11 @@ Every experiment is scored on the same 100 development rows. What changes is how
 | E2 Prompt comparison: `few_shot`, `few_shot_constraint` | Whether showing solved examples helps | Development subset | 5 rows picked once at random (`random_state=0`) and shown as solved examples in every prompt | 5, the same 5 for all messages |
 | E3 Decoding comparison | Whether greedy, temperature, top-k, or top-p changes quality or stability | Development subset | Same 5 fixed rows as E2 `few_shot_constraint` | 5, same 5 |
 | E4 Structured output | Whether the model can answer in JSON that passes a schema with the 77 names | Development subset | Same 5 fixed rows, rewritten as JSON answers | 5, same 5 |
-| Adaptation: retrieval few-shot | Whether examples chosen for the message, not at random, fix the near-synonym errors | Development subset | For each message, the 5 train rows most similar to it (TF-IDF cosine) are picked from all 10,003 and shown as examples | 5, different for each message |
+| Adaptation: retrieval few-shot + constraint | Whether examples chosen for the message, not at random, fix the near-synonym errors | Development subset | For each message, the 5 train rows most similar to it (TF-IDF cosine) are picked from all 10,003 and shown as examples | 5, different for each message |
 | Reference: TF-IDF + logistic regression | What a trained classical classifier scores on the same rows: the bar to beat | Development subset | Trained on all 10,003 rows | all, through training |
 | Reference: 5-NN vote | How much of the retrieval result comes from the examples alone, without the LLM | Development subset | Same 5 retrieved rows as the retrieval experiment; majority label, no LLM | 5 |
-| E7 Final system, held-out run | The honest accuracy of the chosen system on rows no decision was made on | **Held-out subset**, 100 rows | Same as retrieval few-shot | 5, different for each message |
-| E7 Final system, agent demo | Whether the full loop (classify, tool call, reply) works end to end | 4 hand-written messages | Same as retrieval few-shot | 5 |
+| E7 Final system, held-out run | The honest accuracy of the chosen system on rows no decision was made on | **Held-out subset**, 100 rows | Same as retrieval few-shot + constraint | 5, different for each message |
+| E7 Final system, agent demo | Whether the full loop (classify, tool call, reply) works end to end | 4 hand-written messages | Same as retrieval few-shot + constraint | 5 |
 
 *Note on the two reference rows.* They are not part of the product. They exist to answer "compared to what?". TF-IDF + logistic regression is the textbook text classifier: it trains in seconds on a CPU with no prompt and no GPU, and it was the classifier in the first version of this project before the LLM took over intent detection. Its 0.79 is the bar the LLM must pass to justify its cost. The 5-NN vote uses the same 5 retrieved examples as the retrieval experiment but takes a majority label without the LLM; it shows how much of the retrieval result comes from the examples alone (0.77) and how much the LLM adds on top (0.84).
 
@@ -505,17 +505,37 @@ At temperature 1.5, 7 outputs contained no valid label. They are not near-misses
 - Put those 5 rows into the `few_shot_constraint` prompt in place of the 5 random rows. Everything else is unchanged: same task line, same constraint, greedy decoding, same parser.
 - Code: `src/retrieval.py`, functions `retrieve(message)` and `build_prompt(message)`. Run with `uv run -m src.retrieval`, about 2 minutes.
 
-Example. For "How do I track my card?" the retriever returns:
+**Sample prompt**
 
-| Retrieved train row | Label |
-|---|---|
-| how do i track the moeney | verify_source_of_funds |
-| How can I track my card's delivery? | card_arrival |
-| How do I track the card you sent me? | card_arrival |
-| Is there a way to track my card? | card_arrival |
-| Can you help me track my card? | card_arrival |
+The prompt that `build_prompt("How do I track my card?")` produces, exactly as sent to the model. Compare it with the `few_shot_constraint` prompt in Section 6: the only difference is the five example rows.
 
-The model answers `card_arrival`. Under every earlier prompt it had answered `card_delivery_estimate`. Four of the five examples show it where this dataset puts "track my card".
+```
+Classify the customer message into one of these intents:
+Refund_not_showing_up, activate_my_card, ... (all 77 names) ..., wrong_exchange_rate_for_cash_withdrawal
+Reply with the exact intent name from the list and nothing else. Always choose exactly one intent.
+
+Message: how do i track the moeney
+Intent: verify_source_of_funds
+
+Message: How can I track my card's delivery?
+Intent: card_arrival
+
+Message: How do I track the card you sent me?
+Intent: card_arrival
+
+Message: Is there a way to track my card?
+Intent: card_arrival
+
+Message: Can you help me track my card?
+Intent: card_arrival
+
+Message: How do I track my card?
+Intent:
+```
+
+- The five examples are the train rows with the highest TF-IDF similarity to "How do I track my card?". They share the words "how", "do", "I", "track", "my", "card". The first one is a word match only ("track the moeney") and carries an unrelated label; the other four are about tracking a card and all carry `card_arrival`.
+- The model answers `card_arrival`. Under every earlier prompt it had answered `card_delivery_estimate`. Four of the five examples show it where this dataset puts "track my card".
+- For a different customer message the five examples are different, with no change to the code. In Section 6 the same five random rows (about beneficiaries, ATM deposits, unrecognised payments) appeared for every message.
 
 **Results**
 
@@ -526,7 +546,7 @@ Four systems, all scored on the same 100 development rows. The first row is wher
 | Before: `few_shot_constraint` (Section 6) | LLM reads 5 random train rows and the message | yes | no | 5, same for every message | 0.43 | 8 |
 | Reference: 5-NN vote | Count the labels of the 5 retrieved train rows; the most common label wins. No model call | no | no | 5, chosen per message | 0.77 | 0 |
 | Reference: TF-IDF + logistic regression | Classical classifier trained once on all 10,003 train rows | no | yes | none | 0.79 | 0 |
-| **After: retrieval few-shot (the adaptation)** | Put the same 5 retrieved train rows and the message into the prompt; the LLM reads them and picks the label | yes | no | 5, chosen per message | **0.84** | 3 |
+| **After: retrieval few-shot + constraint (the adaptation)** | Put the same 5 retrieved train rows and the message into the prompt; the LLM reads them and picks the label | yes | no | 5, chosen per message | **0.84** | 3 |
 
 The 5-NN vote and the adaptation start from the same 5 retrieved rows. The difference is what happens next. The vote only counts labels, so it cannot use the words of the message or of the examples. The LLM reads both. One row where this matters, "Can I make online purchases with my card?": the 5 retrieved rows carry the labels `virtual_card_not_working` (2), `failed_transfer` (1), `disposable_card_limits` (1), `card_acceptance` (1). The vote picks `virtual_card_not_working`, the most frequent. The LLM reads the message, sees that it asks whether the card can be used, and picks `card_acceptance`, which is correct. The vote is a floor: it shows how much accuracy the examples alone provide. Anything above it is the model's contribution.
 
