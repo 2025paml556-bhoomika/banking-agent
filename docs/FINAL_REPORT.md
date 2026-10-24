@@ -787,6 +787,54 @@ Assistant: Sorry, I could not understand your request. Could you say it in a dif
 - Reference numbers are derived from the intent name, so two customers blocking a card get the same number. A real backend would issue unique ones.
 - The 26 unsupported intents do not open a ticket. A real system would.
 
+**Sequence of one request**
+
+The full path of one customer message through the final system (`main.py`). Time runs downward. Solid arrows are function calls; dashed arrows are returns.
+
+```
+ Customer        handle()          classify_intent()      retrieve()     LLM (generate)     handle_intent()
+    │                │                     │                  │               │                   │
+    │  message       │                     │                  │               │                   │
+    │───────────────►│                     │                  │               │                   │
+    │                │  message            │                  │               │                   │
+    │                │────────────────────►│                  │               │                   │
+    │                │                     │  message         │               │                   │
+    │                │                     │─────────────────►│               │                   │
+    │                │                     │  5 nearest train rows            │                   │
+    │                │                     │◄─ ─ ─ ─ ─ ─ ─ ─ ─│               │                   │
+    │                │                     │  prompt: task + constraint + 5 examples + message    │
+    │                │                     │─────────────────────────────────►│                   │
+    │                │                     │  "card_arrival"  (greedy, 32 tokens)                 │
+    │                │                     │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│                   │
+    │                │                     │                                  │                   │
+    │                │                     │  parse_intent, validate against the 77-name schema   │
+    │                │                     │                                  │                   │
+    │                │  {"intent": ...}  or  {"error": ...}                   │                   │
+    │                │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                                  │                   │
+    │                │                                                        │                   │
+    │                │  if error: ─────────────────────────────────────────────────────────────────────┐
+    │  "Sorry, I could not understand your request. Could you say it in a different way?"            │
+    │◄─ ─ ─ ─ ─ ─ ─ ─│◄───────────────────────────────────────────────────────────────────────────────┘
+    │                │                                                        │                   │
+    │                │  intent                                                │                   │
+    │                │───────────────────────────────────────────────────────────────────────────►│
+    │                │  {intent, status: done | information | unsupported, result, [reference]}  │
+    │                │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│
+    │                │                                                        │                   │
+    │                │  chat history: system prompt, message, both tool calls, both tool results  │
+    │                │───────────────────────────────────────────────────────►│                   │
+    │                │  reply text  (sampling, temperature 0.7, 80 tokens)    │                   │
+    │                │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                   │
+    │  reply         │                                                        │                   │
+    │◄─ ─ ─ ─ ─ ─ ─ ─│                                                        │                   │
+    │                │                                                        │                   │
+```
+
+- The LLM is called twice per request: once inside `classify_intent` to produce the label (greedy), once at the end to write the reply (sampled). Both calls go through the same `generate()` in `src/llm.py`.
+- `handle()` decides the order. The model never chooses whether or when a tool runs.
+- Each tool call and its result are appended to the chat history by `call_tool()` before the next step, so the final LLM call sees the complete transcript.
+- The error branch leaves after the first tool. No `handle_intent` call, no second LLM call, a fixed sentence to the customer.
+
 ## 11. Programmatic Prompting
 
 **What it means here**
