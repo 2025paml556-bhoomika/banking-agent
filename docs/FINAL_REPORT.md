@@ -802,7 +802,8 @@ The full path of one customer message through the final system (`main.py`). Time
     │                │                     │─────────────────►│               │                   │
     │                │                     │  5 nearest train rows            │                   │
     │                │                     │◄─ ─ ─ ─ ─ ─ ─ ─ ─│               │                   │
-    │                │                     │  prompt: task + constraint + 5 examples + message    │
+    │                │                     │  prompt: task line with all 77 intent names          │
+    │                │                     │          + constraint + 5 examples + message         │
     │                │                     │─────────────────────────────────►│                   │
     │                │                     │  "card_arrival"  (greedy, 32 tokens)                 │
     │                │                     │◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─│                   │
