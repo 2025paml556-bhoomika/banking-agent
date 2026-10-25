@@ -953,6 +953,37 @@ The classifier of the final system (`classify_intent` in `main.py`) was run once
 
 - The notebook (`notebooks/banking_agent.ipynb`) re-executed every experiment from scratch and reproduced every number in the tables above. Greedy runs are identical to the character; seeded sampling runs are identical on the same hardware.
 
+**Same pipeline, second model**
+
+Every experiment above was run a second time with a pretrained model from a different vendor, `microsoft/Phi-4-mini-instruct` (3.8B parameters, Microsoft), on a Colab T4 GPU. Nothing else changed: the same code, prompts, seeds, subsets, and schema; one environment variable selects the model. The purpose is to check whether the method conclusions depend on the model they were drawn from. Result files: `evaluation/results/phi4/`.
+
+| Step | Qwen2.5-1.5B (Alibaba) | Phi-4-mini 3.8B (Microsoft) |
+|---|---|---|
+| E1 baseline | 0.41, preamble 57 | 0.53, preamble 0 |
+| E2 best instruction prompt | 0.43 (`few_shot`, `few_shot_constraint`) | 0.60 (`constraint`); `few_shot` 0.49 |
+| E3 greedy / sampling range | 0.43 / 0.38 to 0.44 | 0.49 / 0.37 to 0.47 |
+| E3 `temperature_1.5`: no valid intent, rows flipped | 7, 13 | 21, 22 |
+| E4 valid JSON / pass schema | 100 / 86 | 100 / 93 |
+| Retrieval few-shot, development | 0.84 (5-NN vote 0.77) | 0.92 (5-NN vote 0.77) |
+| Retrieval against the vote: LLM right where vote wrong / reverse | 12 / 5 | 17 / 2 |
+| **Final system, held-out** | **0.77**, no valid intent 4 | **0.87**, no valid intent 0 |
+| Reference: TF-IDF + logistic regression | 0.79 | 0.79 (no LLM involved) |
+
+What holds for both models:
+
+- Retrieval is the step that matters. It adds 0.41 for Qwen (0.43 to 0.84) and 0.32 for Phi (0.60 to 0.92), and both models pass the classical reference only after it. The 5-NN vote is 0.77 in both runs because it does not use the model; the gap above it (0.07 and 0.15) is what each model adds on top of the examples.
+- Sampling never beats greedy, and the strongest setting hurts most. `temperature_1.5` cost Qwen 0.03 and Phi 0.12, with 21 of 100 Phi outputs no longer containing a valid intent.
+- The schema catches the same invented names. Phi's 7 rejections are a subset of Qwen's 14: `refund_not_showing_up` (lowercase r), `get_virtual_card`, `top_up_by_cheque`. The `confidence` field is again uninformative (0.9 on 86 rows).
+- The remaining errors are the same type. On held-out, 74 rows are right for both models and 10 are wrong for both; the shared errors are near-synonym pairs (`card_arrival` / `card_delivery_estimate`, `compromised_card` / `lost_or_stolen_card`).
+
+What differs:
+
+- Phi starts higher (0.53 against 0.41) and produces no preamble even without the constraint line. The format fixes of E2 were needed for Qwen; Phi did not need them.
+- Random few-shot examples hurt Phi (0.60 to 0.49): 7 rows that the zero-shot prompt got right went wrong with 5 unrelated examples in the prompt. For Qwen the same examples were neutral to slightly positive. So the E2 conclusion "examples help" is model-dependent; the sharper statement, which holds for both, is "relevant examples help, random examples do not".
+- Phi ends higher: 0.87 held-out against 0.77, with 13 rows right for Phi only and 3 for Qwen only. The 95% interval on 100 rows is about ±0.08, so the gap is at the edge of what one subset can show, but it is in the same direction on both subsets.
+
+In one sentence: the levers behave the same way on both models, a larger model from another vendor lifts the whole curve, and with it the final system is above the classical reference (0.87 against 0.79) instead of level with it.
+
 **Failure analysis: the seven failure types**
 
 | Type | What happens | Where seen | What fixed it |

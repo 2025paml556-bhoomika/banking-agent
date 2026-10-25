@@ -85,8 +85,9 @@ Use Google Colab for it.
 
 `evaluation/results/` holds the results of the default model. Every script
 writes there, so after a run with another model, copy the files to a
-subfolder named after the model, for example `evaluation/results/phi4/`,
-before the next default run overwrites them.
+subfolder named after the model before the next default run overwrites
+them. `evaluation/results/phi4/` holds the same 15 files from a run with
+`MODEL=microsoft/Phi-4-mini-instruct` on a Colab T4.
 
 ## Notebooks
 
@@ -126,7 +127,8 @@ by `uv sync`.
 | `evaluation/final_eval.py` | Runs the final system once on the held-out subset. |
 | `evaluation/eval_subset.csv` | Development set: the 100 test messages used by every experiment. |
 | `evaluation/heldout_subset.csv` | Held-out set: 100 other test messages, used only by `final_eval.py`. |
-| `evaluation/results/results_*.csv` | Output of each experiment. |
+| `evaluation/results/results_*.csv` | Output of each experiment with the default model (Qwen2.5-1.5B). |
+| `evaluation/results/phi4/results_*.csv` | The same experiments with `microsoft/Phi-4-mini-instruct`. |
 | `docs/PROGRESS.md` | Step-by-step log: what we did, why, and what we found. |
 | `docs/FAILURES.md` | E6. Failure types and worked failure cases. |
 | `docs/GAPS.md` | Gap analysis of the first version against the assignment. |
@@ -134,18 +136,20 @@ by `uv sync`.
 
 ## Results in short
 
-| System | Accuracy on 100 development messages |
-|---|---|
-| E1 baseline, zero-shot | 0.41 |
-| E2 best prompt (few-shot + constraint) | 0.43 |
-| E3 best decoding (greedy) | 0.43 |
-| E4 JSON output, schema-valid rows | 0.50 |
-| TF-IDF + Logistic Regression (classic baseline) | 0.79 |
-| Retrieval few-shot (used in `main.py`) | 0.84 |
+| System | Qwen2.5-1.5B | Phi-4-mini 3.8B |
+|---|---|---|
+| E1 baseline, zero-shot | 0.41 | 0.53 |
+| E2 best instruction prompt | 0.43 | 0.60 |
+| E3 best decoding (greedy) | 0.43 | 0.49 |
+| E4 JSON output, schema-valid rows | 0.50 | 0.57 |
+| TF-IDF + Logistic Regression (classic baseline) | 0.79 | 0.79 |
+| Retrieval few-shot (used in `main.py`) | 0.84 | 0.92 |
 
-| Final system | Accuracy on 100 held-out messages |
-|---|---|
-| **`main.py` classifier, run once** | **0.77** |
+Accuracy on the 100 development messages.
+
+| Final system, `main.py` classifier run once on 100 held-out messages | Qwen2.5-1.5B | Phi-4-mini 3.8B |
+|---|---|---|
+| Accuracy | **0.77** | **0.87** |
 
 Read `docs/PROGRESS.md` for the reasons behind each number.
 

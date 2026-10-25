@@ -1,6 +1,14 @@
 ---
 marp: true
 paginate: true
+style: |
+  section { font-size: 25px; padding: 40px 50px; }
+  h1 { font-size: 38px; margin-bottom: 14px; }
+  table { font-size: 21px; margin: 8px 0; }
+  th, td { padding: 4px 10px; }
+  ul { margin: 6px 0; }
+  li { margin: 2px 0; }
+  pre { font-size: 17px; margin: 6px 0; }
 ---
 
 # Banking Intent Assistant on BANKING77
@@ -109,9 +117,8 @@ Code: https://github.com/2025paml556-bhoomika/banking-agent
 | TF-IDF + logistic regression | no | yes | - | 0.79 |
 | **Retrieval few-shot + constraint** | yes | no | 5, per message | **0.84** |
 
-- The errors were missing knowledge, so the fix must add knowledge: RAG over the train file (TF-IDF cosine, 5 nearest rows as examples)
-- Correct label present among the 5 retrieved rows in 94 of 100 cases
-- +41 rows net against random examples; +7 net against the vote: the LLM adds on top of the examples
+- The errors were missing knowledge, so the fix must add knowledge: RAG over the train file (TF-IDF cosine, 5 nearest rows)
+- Correct label among the 5 retrieved rows in 94 of 100 cases; +41 net vs random examples, +7 net vs the vote
 - Fine-tuning not needed: the classical bar is passed with no training, on a laptop
 
 <!-- 1:15. This is the key decision slide. -->
@@ -120,9 +127,14 @@ Code: https://github.com/2025paml556-bhoomika/banking-agent
 
 # 7. Final system: tools and the agent loop
 
-![width:900px](images/sequence.png)
+`handle(message)` in `main.py`, one message end to end:
 
-- Two tools with JSON schemas: `classify_intent(message)` → validated intent; `handle_intent(intent)` → `done` / `information` / `unsupported` with a reference number
+1. `classify_intent(message)`: retrieve 5 nearest train rows → prompt → greedy → parse → validate against the 77-name `enum`
+2. `handle_intent(intent)`: simulated backend → `done` (17 action intents, reference `REF-nnnn`) / `information` (34) / `unsupported` (26, human agent)
+3. Reply: LLM, sampled (temperature 0.7), written from the tool transcript only
+4. Error path: no valid intent → ask the customer to rephrase, no tool call
+
+- Both tools have JSON schemas and are passed to the chat template as `tools` (full sequence diagram in the report, Section 10)
 - **The code fixes the tool order.** The 1.5B model driving the loop itself gave 0 of 8 correct sequences (4 messages, two setups): skipped tools, invented `BLOCK_CARD_LOST`, claimed actions not taken
 - Reply is sampled from the real tool transcript; "Do not claim any action that the tool results do not show"
 
@@ -132,24 +144,19 @@ Code: https://github.com/2025paml556-bhoomika/banking-agent
 
 # 8. Evaluation and failure analysis
 
-| Subset | Accuracy | No valid intent |
+| Subset | Qwen2.5-1.5B | Phi-4-mini 3.8B |
 |---|---|---|
-| Development (chose the approach) | 0.84 | 3 |
-| **Held-out (used once)** | **0.77** | 4 |
+| Development (chose the approach) | 0.84 | 0.92 |
+| **Held-out (used once)** | **0.77** | **0.87** |
+| Reference: TF-IDF + LogReg | 0.79 | 0.79 |
 
-Seven failure types, eleven worked cases in `docs/FAILURES.md`:
+Same pipeline, second model from another vendor (Microsoft, Colab T4), one environment variable changed. Every lever behaved the same way: retrieval +0.41 and +0.32, sampling never beat greedy, the schema caught the same invented names. The larger model lifts the whole curve.
 
-| Type | Example | Fixed by |
-|---|---|---|
-| A. Near-synonym label | card_arrival vs card_delivery_estimate | Retrieval, mostly |
-| C. Invented label | `top_up_verification` | Schema enum |
-| D. Refusal | "none of the intents match" | Constraint line |
-| F. Retrieval misleads | nearest rows share words, not meaning | Sentence embeddings (future) |
-| G. Random decoding | right answer sampled away | Greedy |
+Failure analysis: seven types, eleven worked cases in `docs/FAILURES.md`. What remains after retrieval is near-synonym labels (`card_arrival` vs `card_delivery_estimate`): 10 held-out rows are wrong for both models. Retrieval that matches words, not meaning, is the next thing to fix (sentence embeddings).
 
-- Honest claim: **matches a trained classifier with no training**, and also writes the reply and drives the tool call
+Honest claim: with Qwen the system **matches** a trained classifier with no training; with Phi it is **above** it. Both also write the reply and drive the tool call.
 
-<!-- 1:00. 0.77 is the number to quote. Level with the classical reference, not clearly above. -->
+<!-- 1:00. 0.77 and 0.87 are the numbers to quote. -->
 
 ---
 
@@ -159,9 +166,9 @@ Seven failure types, eleven worked cases in `docs/FAILURES.md`:
 - Hallucinated claims: control in code, language in the model; reply generated from the tool transcript
 - Prompt injection: the message enters only as data; tool order and arguments are set by code
 - Privacy: model runs locally; PII masking before retrieval and logs in production
-- Limits: 1.5B model on 8 GB; single turn; `handle_intent` is a simulation; TF-IDF retrieval matches words, not meaning
+- Limits: small models; single turn; `handle_intent` is a simulation; TF-IDF retrieval matches words, not meaning
 
-**Reproduce:** `notebooks/banking_agent.ipynb` runs every experiment; about 21 minutes on an M3 Mac
+**Reproduce:** `notebooks/banking_agent.ipynb` runs every experiment; 21 minutes on an M3 Mac. One environment variable switches the model; the Phi run was done the same way on a Colab T4
 
 <!-- 0:45. Close with the three principles: control in code, validate at the boundary, fail towards a human. -->
 
