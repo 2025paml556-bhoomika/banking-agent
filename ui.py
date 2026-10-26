@@ -21,14 +21,15 @@ def respond(message, history):
     out = io.StringIO()
     with contextlib.redirect_stdout(out):  # main.call_tool prints one "[tool] ..." line per call
         reply = handle(message)
-    return reply, out.getvalue().strip()
+    trace = out.getvalue().strip().replace(" -> ", "\n  -> ").replace("  [tool]", "\n[tool]")
+    return reply, trace
 
 
 with gr.Blocks(title="Banking assistant") as demo:
     gr.Markdown("# Banking assistant\nEach message is handled on its own (no conversation memory).")
     with gr.Row():
         with gr.Column(scale=2):
-            trace = gr.Code(label="Tool calls (last message)", language=None, lines=8, render=False)
+            trace = gr.Code(label="Tool calls (last message)", language=None, lines=14, wrap_lines=True, show_line_numbers=False, render=False)
             gr.ChatInterface(respond, examples=EXAMPLES, additional_outputs=[trace])
         with gr.Column(scale=1):
             trace.render()
