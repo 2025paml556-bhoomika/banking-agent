@@ -97,11 +97,11 @@ The classical bar is passed with no training, on a laptop. The adaptation decisi
 
 ### Slide 8, Final system (0:50)
 
-`main.py` puts the conclusions together. One function, `handle`, takes a message and runs four steps.
+`main.py` puts the conclusions together. One function, `handle`, takes a message and runs five steps.
 
-One: `classify_intent`. Retrieve five examples, build the prompt, greedy decoding, parse, and validate against the 77-name enum. Two: `handle_intent`. A simulated backend that returns "done" with a reference number for 17 action intents, "information" for 34 question intents, or "unsupported" for 26 intents that need a human. Three: the reply, sampled, written from the tool transcript only. Four: if there is no valid intent, the assistant asks the customer to rephrase and calls no tool.
+One: `classify_intent`. Retrieve five examples, build the prompt, greedy decoding, parse, and validate against the 77-name enum. Two: if the intent is one of the 17 actions, such as blocking a card, the assistant does not act yet. It says what it understood and asks for a yes, because the classifier is right about 8 times in 10 and a wrong block is irreversible. Three: `handle_intent`. A simulated backend that returns "done" with a reference number for actions, "information" for 34 question intents, or "unsupported", with how to reach a human, for 26 intents. Four: the reply, sampled, written from the tool transcript only. Five: if there is no valid intent, the assistant asks the customer to rephrase and calls no tool.
 
-One design point. The code fixes the tool order, not the model. We tested letting the model drive the tool loop: 4 messages, two setups, 0 of 8 correct sequences. It skipped tools, invented an argument, "BLOCK CARD LOST", and claimed it had blocked a card when it had not. With a small model, control belongs in code.
+One design point. The code fixes the tool order and checks the yes or no, not the model. We tested letting the model drive the tool loop: 4 messages, two setups, 0 of 8 correct sequences. It skipped tools, invented an argument, "BLOCK CARD LOST", and claimed it had blocked a card when it had not. With a small model, control belongs in code.
 
 ### Slide 9, Evaluation and failure analysis (1:00)
 

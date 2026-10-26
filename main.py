@@ -143,23 +143,39 @@ def call_tool(messages: list[dict], name: str, **arguments) -> dict:
     return output
 
 
-def handle(message: str) -> str:
+YES = {"yes", "y", "ok", "okay", "sure", "confirm", "go ahead", "please do"}
+NO = {"no", "n", "cancel", "stop", "don't"}
+
+
+def handle(message: str, pending: str | None = None) -> tuple[str, str | None]:
+    """One chat turn. `pending` is an action intent that waits for the customer's confirmation.
+    Returns the reply and the new pending intent (None when nothing waits)."""
     # The code fixes the tool order. The 1.5B model did not do this reliably on its own (see docs/PROGRESS.md, step 9).
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": message}]
-    intent = call_tool(messages, "classify_intent", message=message)
-    if "error" in intent:
-        return "Sorry, I could not understand your request. Could you say it in a different way?"
+    answer = message.strip().lower().rstrip(".!")
+    if pending and answer in NO:
+        return "Okay, I have not done anything. How else can I help?", None
+    if pending and answer in YES:
+        intent = {"intent": pending}
+    else:
+        intent = call_tool(messages, "classify_intent", message=message)
+        if "error" in intent:
+            return "Sorry, I could not understand your request. Could you say it in a different way?", None
+        if intent["intent"] in ACTIONS:  # irreversible: ask before acting
+            return f"I understood your request as: {intent['intent'].replace('_', ' ')}. Shall I go ahead? Reply yes to confirm.", intent["intent"]
     call_tool(messages, "handle_intent", intent=intent["intent"])
     # Sampling is used only here, for the free-text reply (E3 conclusion).
-    return generate(messages, max_new_tokens=80, tools=TOOLS, do_sample=True, temperature=0.7).strip()
+    return generate(messages, max_new_tokens=80, tools=TOOLS, do_sample=True, temperature=0.7).strip(), None
 
 
 if __name__ == "__main__":
     print("Banking assistant ready. Press Ctrl-D to exit.")
+    pending = None
     while True:
         try:
             message = input("\nCustomer: ").strip()
         except EOFError:
             break
         if message:
-            print("Assistant:", handle(message))
+            reply, pending = handle(message, pending)
+            print("Assistant:", reply)

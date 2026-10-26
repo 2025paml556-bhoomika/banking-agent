@@ -21,7 +21,7 @@ PCAM ZG516 Applied Generative AI. Group Major Project, Assignment 1.
 
 **Application scenario**
 
-- A first-line assistant that handles one message from start to finish: find the intent, call the matching action (a tool call), and tell the customer what happened. When it is not sure, it asks the customer to rephrase instead of guessing, because a wrong guess can trigger a wrong action such as blocking a card.
+- A first-line assistant that handles one request from start to finish: find the intent, call the matching action (a tool call), and tell the customer what happened. When it is not sure, it asks the customer to rephrase instead of guessing, and before an irreversible action such as blocking a card it states what it understood and asks for a yes.
 
 **Expected input and output**
 
@@ -318,7 +318,7 @@ The 77 intents fall into three groups, all covered by the simulation (the assign
 
 **How the loop runs**
 
-`handle()` in `main.py` fixes the order in code: `classify_intent(message)`, then `handle_intent(intent)`, then the model writes the reply from the tool transcript (temperature 0.7, 80 tokens). If `classify_intent` returns an error, `handle()` returns a fixed sentence asking the customer to rephrase; there is no second tool call and no second model call.
+`handle()` in `main.py` fixes the order in code: `classify_intent(message)`, then `handle_intent(intent)`, then the model writes the reply from the tool transcript (temperature 0.7, 80 tokens). Two cases break this chain. If `classify_intent` returns an error, `handle()` returns a fixed sentence asking the customer to rephrase; there is no second tool call and no second model call. If the intent is one of the 17 action intents, `handle()` does not act yet: it returns "I understood your request as: lost or stolen card. Shall I go ahead? Reply yes to confirm." and remembers the intent. A "yes" on the next turn runs `handle_intent` and the reply; "no" cancels; anything else is treated as a new request. The yes/no check is code, not the model. Questions and unsupported intents change nothing, so they run without confirmation.
 
 ![Sequence of one request through main.py](images/sequence.png)
 
@@ -440,11 +440,11 @@ The assistant can trigger actions on a bank account from free text written by an
 
 | Risk | Where we saw it | Control in the system | Further control for production |
 |---|---|---|---|
-| **Wrong action from a wrong intent** | 16 of 100 development and 23 of 100 held-out rows are misclassified, e.g. "Someone has my card number, freeze my account" → `lost_or_stolen_card` not `compromised_card`. Here the action happens to be the same; it need not be | Schema enum: only real intents reach `handle_intent`. The error path asks the customer to rephrase | Confirmation before any irreversible action. Route low-similarity messages to a human |
+| **Wrong action from a wrong intent** | 16 of 100 development and 23 of 100 held-out rows are misclassified, e.g. "Someone has my card number, freeze my account" → `lost_or_stolen_card` not `compromised_card`. Here the action happens to be the same; it need not be | Schema enum: only real intents reach `handle_intent`. The error path asks the customer to rephrase. The 17 action intents are confirmed first: the assistant states the intent it understood and acts only on a "yes" | Route low-similarity messages to a human. Confirm with the exact action and account detail, not only the intent name |
 | **Hallucinated claims** | Model-driven tool test: "I have blocked your card" with no tool call made. In the final system, the tool result "a support ticket has not been opened" became "please open a support ticket" in the reply: a negative fact turned into an instruction | The code decides the tool order. The system prompt forbids claims the tool results do not show. The reply is generated from the real tool transcript. Tool results are written as instructions, not as negative statements | Check the reply against the tool result (a reference number in the reply must exist in the tool output). Use a template for the action sentence |
 | **Invented labels or arguments** | `top_up_verification`, `get_virtual_card`, `BLOCK_CARD_LOST` | Enum validation on every label. The `handle_intent` argument comes from the validated `classify_intent` output, never from free model text | Log every rejected value for review |
 | **Privacy and data leakage** | BANKING77 is anonymised ("[country]"); live traffic is not. Names and account numbers could end up in logs or prompts | The model runs locally; no message leaves the machine. The backend stores nothing. Examples come from the public train file, never from other customers | Mask personal data before retrieval and logging. Set a log retention policy. If a hosted model is used: data-processing agreement, no training on customer data |
-| **Over-reliance** | A fluent reply reads as more certain than 0.77 held-out accuracy deserves. The system is single-turn and cannot ask a clarifying question | Every reply carries a reference number. Unsupported intents are routed to a human in the reply text | Show the identified intent ("I understood: card arrival. Is that right?"). Human fallback on low confidence. Per-intent accuracy monitoring |
+| **Over-reliance** | A fluent reply reads as more certain than 0.77 held-out accuracy deserves. Apart from the yes/no confirmation, the system cannot ask a clarifying question | Every reply carries a reference number. Unsupported intents are routed to a human in the reply text | Show the identified intent ("I understood: card arrival. Is that right?"). Human fallback on low confidence. Per-intent accuracy monitoring |
 
 **Three principles behind the controls.** Put control in code and leave language to the model: the model never chooses which tool runs or with what argument, which removes the hallucinated-action and invented-argument risks from the executed path. Validate at the boundary: every value that crosses from model text to code passes a schema, so an invalid value becomes a handled error, not an action. Fail towards a human: when the system is unsure, or the intent is a dispute, it says so and points to a human agent.
 
@@ -745,12 +745,15 @@ Four real runs of `main.py`, one per outcome. The `[tool]` lines are printed by 
 Customer: I lost my card, please block it
   [tool] classify_intent({'message': 'I lost my card, please block it'})
          -> {'intent': 'lost_or_stolen_card'}
+Assistant: I understood your request as: lost or stolen card. Shall I go ahead? Reply yes to confirm.
+
+Customer: yes
   [tool] handle_intent({'intent': 'lost_or_stolen_card'})
          -> {'intent': 'lost_or_stolen_card', 'status': 'done',
              'result': 'Card blocked. A replacement card is on its way.', 'reference': 'REF-4315'}
-Assistant: Your request has been processed successfully. Your card has been blocked and a new
-           one will be sent to you soon. Reference number: REF-4315. Please keep this number
-           handy if you need further assistance.
+Assistant: Your lost/stolen card has been blocked. We're sending you a new one soon. Reference
+           number: REF-4315. Please keep your documents handy as we'll need them when you pick
+           up your new card.
 
 Customer: What foreign exchange rate will you use?
   [tool] classify_intent({'message': 'What foreign exchange rate will you use?'})
@@ -780,7 +783,7 @@ Assistant: Sorry, I could not understand your request. Could you say it in a dif
 
 **What the runs show**
 
-- Run 1: an action. The reply reports the block, the replacement, and the reference number, all of which are in the tool result. Nothing is added.
+- Run 1: an action, in two turns. The first turn classifies and asks for confirmation; nothing has happened yet. After "yes", the tool runs and the reply reports the block, the replacement, and the reference number, all of which are in the tool result. The last sentence ("keep your documents handy... pick up your new card") is not in the tool result: a small hallucination from the sampled reply step, of the kind Section 13 lists. A templated action sentence would remove it.
 - Run 2: information. The reply is the fact from the tool, word for word. Short, because there was nothing else to say.
 - Run 3: unsupported. The reply sends the customer to a human and repeats the route from the tool result. An earlier version of this string ended "A support ticket has not been opened", and the model turned that negative statement into the instruction "please open a support ticket", which left the customer with no route. We changed the tool result to say what to do instead; the model relays an instruction faithfully but reinterprets a negative statement (Section 13).
 - Run 4: the error path. No `handle_intent` call, no backend action, a fixed sentence asking the customer to rephrase. This is the schema from Section 9 doing its job in the live system.
@@ -801,12 +804,13 @@ Assistant: Sorry, I could not understand your request. Could you say it in a dif
 5. The LLM returns a label, for example `card_arrival`. `parse_intent` extracts it and it is validated against the schema whose `enum` is the 77 names.
 6. `classify_intent` returns `{"intent": ...}` to `handle()`, or `{"error": ...}` if no valid label was found.
 7. If error: `handle()` returns the fixed sentence "Sorry, I could not understand your request. Could you say it in a different way?" to the customer. No second tool, no second LLM call.
-8. If valid: `handle()` calls the second tool, `handle_intent(intent)`, which returns `{intent, status, result}` and a `reference` when the status is `done`.
-9. `handle()` sends the LLM the full chat history: the system prompt, the customer message, both tool calls, and both tool results, with the tool definitions attached. Sampling, temperature 0.7, 80 tokens.
-10. The LLM writes the reply from that transcript, and `handle()` returns it to the customer.
+8. If the intent is one of the 17 action intents: `handle()` returns "I understood your request as: ... Shall I go ahead? Reply yes to confirm." and returns the intent as `pending`. The caller (terminal loop, UI, notebook) passes `pending` back with the next message. A yes-word (`yes`, `ok`, `confirm`, ...) continues at step 9 with the pending intent; a no-word cancels with a fixed sentence; any other message is a new request from step 1.
+9. `handle()` calls the second tool, `handle_intent(intent)`, which returns `{intent, status, result}` and a `reference` when the status is `done`.
+10. `handle()` sends the LLM the full chat history: the system prompt, the customer message, the tool calls, and the tool results, with the tool definitions attached. Sampling, temperature 0.7, 80 tokens.
+11. The LLM writes the reply from that transcript, and `handle()` returns it to the customer.
 
-- The LLM is called twice per request: step 4 for the label (greedy), step 9 for the reply (sampled). Both go through the same `generate()` in `src/llm.py`.
-- `handle()` decides the order. The model never chooses whether or when a tool runs.
+- The LLM is called twice per request: step 4 for the label (greedy), step 10 for the reply (sampled). Both go through the same `generate()` in `src/llm.py`.
+- `handle()` decides the order, and code checks the confirmation. The model never chooses whether or when a tool runs.
 - `call_tool()` appends each tool call and its result to the chat history before the next step, so the final LLM call sees the complete transcript.
 
 ## Appendix F. Failure cases

@@ -17,20 +17,23 @@ EXAMPLES = [
 ]
 
 
-def respond(message, history):
+def respond(message, history, pending):
     out = io.StringIO()
     with contextlib.redirect_stdout(out):  # main.call_tool prints one "[tool] ..." line per call
-        reply = handle(message)
+        reply, pending = handle(message, pending)
     trace = out.getvalue().strip().replace(" -> ", "\n  -> ").replace("  [tool]", "\n[tool]")
-    return reply, trace
+    if pending:
+        trace += f"\n\n[waiting for confirmation] {pending}"
+    return reply, trace, pending
 
 
 with gr.Blocks(title="Banking assistant") as demo:
-    gr.Markdown("# Banking assistant\nEach message is handled on its own (no conversation memory).")
+    gr.Markdown("# Banking assistant\nActions that change the account (block a card, cancel a transfer, ...) are confirmed before they run.")
     with gr.Row():
         with gr.Column(scale=2):
             trace = gr.Code(label="Tool calls (last message)", language=None, lines=14, wrap_lines=True, show_line_numbers=False, render=False)
-            gr.ChatInterface(respond, examples=EXAMPLES, additional_outputs=[trace])
+            pending = gr.State(None)
+            gr.ChatInterface(respond, examples=[[e] for e in EXAMPLES], additional_inputs=[pending], additional_outputs=[trace, pending])
         with gr.Column(scale=1):
             trace.render()
 

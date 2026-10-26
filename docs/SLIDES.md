@@ -127,18 +127,19 @@ Code: https://github.com/2025paml556-bhoomika/banking-agent
 
 # 7. Final system: tools and the agent loop
 
-`handle(message)` in `main.py`, one message end to end:
+`handle(message, pending)` in `main.py`, one request end to end:
 
 1. `classify_intent(message)`: retrieve 5 nearest train rows → prompt → greedy → parse → validate against the 77-name `enum`
-2. `handle_intent(intent)`: simulated backend → `done` (17 action intents, reference `REF-nnnn`) / `information` (34) / `unsupported` (26, human agent)
-3. Reply: LLM, sampled (temperature 0.7), written from the tool transcript only
-4. Error path: no valid intent → ask the customer to rephrase, no tool call
+2. Action intent (17, irreversible)? Ask first: "I understood: lost or stolen card. Shall I go ahead?" Act only on "yes"
+3. `handle_intent(intent)`: simulated backend → `done` (reference `REF-nnnn`) / `information` (34) / `unsupported` (26, how to reach a human)
+4. Reply: LLM, sampled (temperature 0.7), written from the tool transcript only
+5. Error path: no valid intent → ask the customer to rephrase, no tool call
 
-- Both tools have JSON schemas and are passed to the chat template as `tools` (full sequence diagram in the report, Section 10)
-- **The code fixes the tool order.** The 1.5B model driving the loop itself gave 0 of 8 correct sequences (4 messages, two setups): skipped tools, invented `BLOCK_CARD_LOST`, claimed actions not taken
-- Reply is sampled from the real tool transcript; "Do not claim any action that the tool results do not show"
+- Both tools have JSON schemas and are passed to the chat template as `tools` (sequence diagram in the report, Section 10)
+- **The code fixes the tool order and checks the yes/no.** The 1.5B model driving the loop itself gave 0 of 8 correct sequences: skipped tools, invented `BLOCK_CARD_LOST`, claimed actions not taken
+- "Do not claim any action that the tool results do not show"
 
-<!-- 1:00. Live demo here if time: `uv run main.py`, type "I lost my card, please block it". -->
+<!-- 1:00. Live demo here if time: `uv run ui.py`, type "I lost my card, please block it", then "yes". -->
 
 ---
 

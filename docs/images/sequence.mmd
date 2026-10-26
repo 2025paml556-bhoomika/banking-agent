@@ -18,9 +18,17 @@ sequenceDiagram
 
     alt error
         H-->>C: "Sorry, I could not understand your request. Could you say it in a different way?"
-    else valid intent
+    else action intent (17, irreversible)
+        H-->>C: "I understood your request as: lost or stolen card. Shall I go ahead? Reply yes to confirm."
+        C->>H: "yes" (any other answer cancels or starts a new request)
+        H->>HI: pending intent
+        HI-->>H: {intent, status: done, result, reference}
+        H->>LLM: chat history with the tool call and result (temperature 0.7, 80 tokens)
+        LLM-->>H: reply text
+        H-->>C: reply
+    else question or unsupported intent
         H->>HI: intent
-        HI-->>H: {intent, status: done | information | unsupported, result, [reference]}
+        HI-->>H: {intent, status: information | unsupported, result}
         H->>LLM: chat history: system prompt, message, both tool calls, both tool results (temperature 0.7, 80 tokens)
         LLM-->>H: reply text
         H-->>C: reply

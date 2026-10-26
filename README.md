@@ -41,7 +41,10 @@ uv run main.py
 ```
 
 Type a message, for example `I lost my card, please block it`.
-The assistant prints each tool call and then the reply. Press Ctrl-D to exit.
+The assistant prints each tool call and then the reply. Actions that change
+the account (block a card, cancel a transfer, ...) are confirmed first: the
+assistant says what it understood and acts only when you answer `yes`.
+Press Ctrl-D to exit.
 
 Or test it in the browser:
 
