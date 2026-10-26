@@ -12,5 +12,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "gradio>=6.30.0",
     "ipykernel>=7.4.0",
 ]

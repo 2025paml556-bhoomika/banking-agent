@@ -43,6 +43,16 @@ uv run main.py
 Type a message, for example `I lost my card, please block it`.
 The assistant prints each tool call and then the reply. Press Ctrl-D to exit.
 
+Or test it in the browser:
+
+```bash
+uv run ui.py
+```
+
+Open http://127.0.0.1:7860. The page shows the chat on the left and the
+tool calls for the last message on the right. The first start takes about
+30 seconds to load the model.
+
 Run one test generation to check that the model loads:
 
 ```bash
@@ -115,6 +125,7 @@ by `uv sync`.
 | File | Purpose |
 |---|---|
 | `main.py` | E7. The final assistant with `classify_intent` and `handle_intent` tools. |
+| `ui.py` | Browser chat page (Gradio) that runs `main.handle()` and shows the tool calls. |
 | `src/llm.py` | Loads the model. `generate(messages, **decoding)` is the one function all scripts use. |
 | `src/baseline.py` | E1. Loads the 77 intent names, the simplest prompt, and `parse_intent`. |
 | `src/prompts.py` | E2. Five prompt styles: zero-shot, role, constraint, few-shot, few-shot + constraint. |
@@ -132,7 +143,8 @@ by `uv sync`.
 | `docs/PROGRESS.md` | Step-by-step log: what we did, why, and what we found. |
 | `docs/FAILURES.md` | E6. Failure types and worked failure cases. |
 | `docs/GAPS.md` | Gap analysis of the first version against the assignment. |
-| `docs/REPORT.md` | The technical report. Convert with `pandoc docs/REPORT.md -o REPORT.docx`. |
+| `docs/FINAL_REPORT.md` | The technical report. Convert with `pandoc docs/FINAL_REPORT.md -f gfm --resource-path=docs -o FINAL_REPORT.docx`. |
+| `docs/SLIDES.md`, `docs/SLIDES.pptx`, `docs/SCRIPT.md` | Presentation slides (Marp source and PPTX) and the per-member speaking script. |
 
 ## Results in short
 

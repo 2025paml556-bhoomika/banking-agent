@@ -504,7 +504,7 @@ and have no saved outputs yet; the next full run on Colab fills them.
 
 ## Step 11: Report draft
 
-**File:** `REPORT.md`
+**File:** `REPORT.md` (first draft, since removed; the final report is `FINAL_REPORT.md`)
 
 **What we did.** Drafted the full technical report in the assignment's
 suggested structure: abstract, problem, dataset, generative-model and
@@ -520,7 +520,7 @@ Req 4 (architecture on a project example with real numbers, section
 reuse the tables from this log and from `FAILURES.md`.
 
 About 6,300 words, which is 12 to 14 pages with tables. Converts to Word
-with `pandoc REPORT.md -o REPORT.docx`.
+with `pandoc REPORT.md -o REPORT.docx`. Removed once `FINAL_REPORT.md` replaced it.
 
 **Left for the group.** Title page details, member names, review of the
 prose, the contribution statement in Appendix B, and the slides.
@@ -531,6 +531,6 @@ prose, the contribution statement in Appendix B, and the slides.
 
 | Step | What | Output |
 |---|---|---|
-| Group review | Read `REPORT.md`, check numbers against the notebook, edit prose, fill the title page and Appendix B | Final report |
+| Group review | Read `FINAL_REPORT.md`, check numbers against the notebook, fill the title page and Appendix I (contribution statement) | Final report |
 | Slides | About 8 slides from the report tables | 8 to 10 minute presentation |
 | Report | Write up all of the above. 10 to 15 pages. | Report + slides |
