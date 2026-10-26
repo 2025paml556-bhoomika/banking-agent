@@ -314,7 +314,7 @@ The 77 intents fall into three groups, all covered by the simulation (the assign
 |---|---|---|
 | `done` | 17 action intents: block card, cancel transfer, change PIN, order card, ... | A result sentence and a stable reference number `REF-nnnn` |
 | `information` | 34 question intents: delivery time, fees, limits, how to top up, ... | The fact the reply needs; no reference, nothing changed |
-| `unsupported` | 26 intents that need a human: disputes, declined payments, unrecognised charges | A sentence saying a human agent is needed and no ticket was opened |
+| `unsupported` | 26 intents that need a human: disputes, declined payments, unrecognised charges | A sentence saying a human agent is needed, and how to reach one (Help, Chat with an agent) |
 
 **How the loop runs**
 
@@ -441,7 +441,7 @@ The assistant can trigger actions on a bank account from free text written by an
 | Risk | Where we saw it | Control in the system | Further control for production |
 |---|---|---|---|
 | **Wrong action from a wrong intent** | 16 of 100 development and 23 of 100 held-out rows are misclassified, e.g. "Someone has my card number, freeze my account" → `lost_or_stolen_card` not `compromised_card`. Here the action happens to be the same; it need not be | Schema enum: only real intents reach `handle_intent`. The error path asks the customer to rephrase | Confirmation before any irreversible action. Route low-similarity messages to a human |
-| **Hallucinated claims** | Model-driven tool test: "I have blocked your card" with no tool call made | The code decides the tool order. The system prompt forbids claims the tool results do not show. The reply is generated from the real tool transcript | Check the reply against the tool result (a reference number in the reply must exist in the tool output). Use a template for the action sentence |
+| **Hallucinated claims** | Model-driven tool test: "I have blocked your card" with no tool call made. In the final system, the tool result "a support ticket has not been opened" became "please open a support ticket" in the reply: a negative fact turned into an instruction | The code decides the tool order. The system prompt forbids claims the tool results do not show. The reply is generated from the real tool transcript. Tool results are written as instructions, not as negative statements | Check the reply against the tool result (a reference number in the reply must exist in the tool output). Use a template for the action sentence |
 | **Invented labels or arguments** | `top_up_verification`, `get_virtual_card`, `BLOCK_CARD_LOST` | Enum validation on every label. The `handle_intent` argument comes from the validated `classify_intent` output, never from free model text | Log every rejected value for review |
 | **Privacy and data leakage** | BANKING77 is anonymised ("[country]"); live traffic is not. Names and account numbers could end up in logs or prompts | The model runs locally; no message leaves the machine. The backend stores nothing. Examples come from the public train file, never from other customers | Mask personal data before retrieval and logging. Set a log retention policy. If a hosted model is used: data-processing agreement, no training on customer data |
 | **Over-reliance** | A fluent reply reads as more certain than 0.77 held-out accuracy deserves. The system is single-turn and cannot ask a clarifying question | Every reply carries a reference number. Unsupported intents are routed to a human in the reply text | Show the identified intent ("I understood: card arrival. Is that right?"). Human fallback on low confidence. Per-intent accuracy monitoring |
@@ -765,10 +765,11 @@ Customer: I was charged twice for the same purchase
          -> {'intent': 'transaction_charged_twice'}
   [tool] handle_intent({'intent': 'transaction_charged_twice'})
          -> {'intent': 'transaction_charged_twice', 'status': 'unsupported',
-             'result': 'This request needs a human agent. A support ticket has not been opened.'}
-Assistant: We're sorry to hear about your issue. Unfortunately, we can't process this request at
-           this time due to its complexity and need for further verification through human
-           interaction. We recommend opening a support ticket so our team can assist you directly.
+             'result': 'This request needs a human agent. Open the app, go to Help, and choose
+             Chat with an agent.'}
+Assistant: The transaction charging issue you're experiencing might require assistance from a
+           human agent. Please open your app, go to Help, and select 'Chat with an agent' to get
+           help resolving this issue.
 
 Customer: asdf qwerty zzz
   [tool] classify_intent({'message': 'asdf qwerty zzz'})
@@ -781,14 +782,15 @@ Assistant: Sorry, I could not understand your request. Could you say it in a dif
 
 - Run 1: an action. The reply reports the block, the replacement, and the reference number, all of which are in the tool result. Nothing is added.
 - Run 2: information. The reply is the fact from the tool, word for word. Short, because there was nothing else to say.
-- Run 3: unsupported. The reply sends the customer to a human and does not claim a ticket was opened, because the tool result says none was. The wording is longer than needed; that is the cost of sampling in the reply step.
+- Run 3: unsupported. The reply sends the customer to a human and repeats the route from the tool result. An earlier version of this string ended "A support ticket has not been opened", and the model turned that negative statement into the instruction "please open a support ticket", which left the customer with no route. We changed the tool result to say what to do instead; the model relays an instruction faithfully but reinterprets a negative statement (Section 13).
 - Run 4: the error path. No `handle_intent` call, no backend action, a fixed sentence asking the customer to rephrase. This is the schema from Section 9 doing its job in the live system.
 
 **Limits of the simulation**
 
 - The facts in the information table are illustrative, not real bank policy.
 - Reference numbers are derived from the intent name, so two customers blocking a card get the same number. A real backend would issue unique ones.
-- The 26 unsupported intents do not open a ticket. A real system would.
+- The 26 unsupported intents do not open a ticket or hand over to an agent. A real system would.
+- Messages outside the 77 intents ("how to raise support ticket") are still mapped to the nearest intent, here `contactless_not_working`, and the reply then mentions a "contactless card issue" the customer never raised. A production system needs an out-of-scope check, for example a minimum retrieval similarity.
 
 **Sequence of one request, as numbered steps**
 

@@ -96,7 +96,7 @@ def handle_intent(intent: str) -> dict:
         return {"intent": intent, "status": "done", "result": ACTIONS[intent], "reference": f"REF-{zlib.crc32(intent.encode()) % 10000:04d}"}
     if intent in INFO:
         return {"intent": intent, "status": "information", "result": INFO[intent]}
-    return {"intent": intent, "status": "unsupported", "result": "This request needs a human agent. A support ticket has not been opened."}
+    return {"intent": intent, "status": "unsupported", "result": "This request needs a human agent. Open the app, go to Help, and choose Chat with an agent."}
 
 
 TOOL_FUNCS = {"classify_intent": classify_intent, "handle_intent": handle_intent}
