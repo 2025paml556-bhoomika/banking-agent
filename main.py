@@ -2,6 +2,7 @@
 tool selection, intent classification (retrieval few-shot), and the customer reply."""
 
 import json
+import re
 import zlib
 
 from jsonschema import ValidationError, validate
@@ -129,9 +130,27 @@ TOOLS = [
 ]
 
 SYSTEM = """You are a customer support assistant for an online bank.
-Reply to the customer in two or three short sentences based only on the tool results.
-If the tool results contain a reference number, mention it. If the status is "unsupported", tell the customer to contact a human agent.
-Do not claim any action that the tool results do not show."""
+Write two or three short sentences to the customer. Use only the facts in the tool result.
+Do not mention the intent name. Do not ask a question. Do not ask for confirmation.
+If the tool result has a reference number, include it.
+If the status is "unsupported", tell the customer to contact a human agent.
+Do not add any fact that the tool result does not contain."""
+
+_SENTENCE = re.compile(r"(?<=[.?!])\s+")
+
+
+def tool_text(output: dict) -> str:
+    text = output["result"]
+    if "reference" in output:
+        return f"{text} Reference {output['reference']}."
+    return text
+
+
+def statements_only(text: str, fallback: str) -> str:
+    """Keep statement sentences. Drop a question or a sentence that names the intent."""
+    parts = [p.strip() for p in _SENTENCE.split(text.strip()) if p.strip()]
+    kept = [p for p in parts if "?" not in p and "intent" not in p.lower() and not p.lower().startswith("would you")]
+    return " ".join(kept) or fallback
 
 
 def call_tool(messages: list[dict], name: str, **arguments) -> dict:
@@ -163,9 +182,11 @@ def handle(message: str, pending: str | None = None) -> tuple[str, str | None]:
             return "Sorry, I could not understand your request. Could you say it in a different way?", None
         if intent["intent"] in ACTIONS:  # irreversible: ask before acting
             return f"I understood your request as: {intent['intent'].replace('_', ' ')}. Shall I go ahead? Reply yes to confirm.", intent["intent"]
-    call_tool(messages, "handle_intent", intent=intent["intent"])
+    output = call_tool(messages, "handle_intent", intent=intent["intent"])
     # Sampling is used only here, for the free-text reply (E3 conclusion).
-    return generate(messages, max_new_tokens=80, tools=TOOLS, do_sample=True, temperature=0.7).strip(), None
+    # An information intent does not ask a question and does not wait for confirmation.
+    reply = generate(messages, max_new_tokens=80, tools=TOOLS, do_sample=True, temperature=0.7).strip()
+    return statements_only(reply, tool_text(output)), None
 
 
 if __name__ == "__main__":
