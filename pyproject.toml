@@ -5,6 +5,7 @@ requires-python = ">=3.13"
 dependencies = [
     "jsonschema>=4.26.0",
     "pandas>=3.0.6",
+    "peft>=0.21.2",
     "scikit-learn>=1.9.1",
     "torch>=2.14.1",
     "transformers>=5.19.0",
@@ -14,4 +15,18 @@ dependencies = [
 dev = [
     "gradio>=6.30.0",
     "ipykernel>=7.4.0",
+]
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
 ]

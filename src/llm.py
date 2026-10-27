@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -10,12 +11,35 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)
 logging.getLogger("httpx2").setLevel(logging.WARNING)
 log = logging.getLogger("llm")
 
+
+def load_project_env() -> None:
+    """Read the project .env. A variable already set in the shell stays as it is."""
+    path = Path(__file__).resolve().parents[1] / ".env"
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+load_project_env()
+
 MODEL = os.environ.get("MODEL", "Qwen/Qwen2.5-1.5B-Instruct")  # set MODEL=Qwen/Qwen2.5-3B-Instruct to compare
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+
+ADAPTER = os.environ.get("ADAPTER")  # path to a LoRA adapter, for example models/intent-lora
 
 log.info("loading %s on %s", MODEL, DEVICE)
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForCausalLM.from_pretrained(MODEL, dtype="auto").to(DEVICE)
+if ADAPTER:
+    from peft import PeftModel
+
+    log.info("loading adapter %s", ADAPTER)
+    model = PeftModel.from_pretrained(model, ADAPTER).to(DEVICE)
 log.info("model ready, dtype %s, %.1fB parameters", model.dtype, model.num_parameters() / 1e9)
 
 
