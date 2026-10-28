@@ -62,7 +62,7 @@ Use LoRA on the 1.5B model. Full training of all weights needs more memory than 
 - Adapter: LoRA on the attention projections.
 - Objective: next-token loss on the assistant label only.
 - Decode at check time with greedy decoding and `parse_intent` from `src/baseline.py`.
-- Save the adapter under `models/intent-lora/`.
+- Save the adapter under `models/intent-lora-retrieval/`.
 
 ## Score
 

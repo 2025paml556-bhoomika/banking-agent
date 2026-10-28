@@ -9,7 +9,7 @@ PCAM ZG516 Applied Generative AI. Group Major Project, Assignment 1.
 
 ---
 
-**Summary.** We built a support assistant for an online bank. A customer types one message; the assistant works out which of 77 request types ("intents") it is, calls a backend tool for that intent, and writes a short reply. The language model is a small open model, `Qwen2.5-1.5B-Instruct`. The experiments in Sections 5 to 11 run it with no training. We tested, one at a time, the four ways to steer such a model at run time: the prompt, the decoding settings, a fixed output format, and tool calling. Prompt wording and decoding changed accuracy by at most 0.03. Showing the model five labelled examples *similar to the customer's message* raised accuracy from 0.43 to 0.84. On 100 messages the retrieval system had never seen, accuracy was 0.77, level with a classical classifier that was trained on the full data set. The same pipeline on a second model, Microsoft's Phi-4-mini, gave the same pattern with higher numbers (0.87 held-out). A later LoRA fine-tune of the 1.5B model, trained only on the train split, scored 0.93 on the development subset and 0.93 on the held-out subset when asked with the training prompt (Section 12). That score is for the intent classifier, not for the retrieval assistant. Every number in this report comes from a result file in the repository.
+**Summary.** We built a support assistant for an online bank. A customer types one message; the assistant works out which of 77 request types ("intents") it is, calls a backend tool for that intent, and writes a short reply. The language model is a small open model, `Qwen2.5-1.5B-Instruct`. The experiments in Sections 5 to 11 run it with no training. We tested, one at a time, the four ways to steer such a model at run time: the prompt, the decoding settings, a fixed output format, and tool calling. Prompt wording and decoding changed accuracy by at most 0.03. Showing the model five labelled examples *similar to the customer's message* raised accuracy from 0.43 to 0.84. On 100 messages the retrieval system had never seen, accuracy was 0.77, level with a classical classifier that was trained on the full data set. The same pipeline on a second model, Microsoft's Phi-4-mini, gave the same pattern with higher numbers (0.87 held-out). A later LoRA fine-tune of the 1.5B model, trained only on the train split, scored 0.93 on the development subset and 0.93 on the held-out subset when asked with the baseline training prompt (Section 12). A second LoRA run, trained on the retrieval prompt, scored 0.94 and 0.91 on the same subsets. Those scores are for the intent classifier. Every number in this report comes from a result file in the repository.
 
 **Terms used in this report.** *Intent*: the type of request behind a message, one of 77 names such as `card_arrival`. *Prompt*: the text we give the model. *Token*: a word or word piece; the model reads and writes text one token at a time. *Greedy decoding*: always take the most likely next token, so the output is the same every run. *Sampling*: pick the next token at random, weighted by its probability. *Few-shot examples*: solved examples placed inside the prompt. *Retrieval*: looking up the train rows most similar to the message and using them as the examples. *Schema*: a rule set that the model's output must satisfy, here a JSON object with an `intent` field whose value must be one of the 77 names. *Tool*: a function the code runs when the model asks for it, such as "block the card".
 
@@ -256,7 +256,7 @@ After Sections 6 and 7, accuracy was 0.43 and 40 rows were wrong under every pro
 - Accuracy doubled with no training. The model was never too small for the task; its prompt was missing the knowledge, and five relevant examples supply it. It beats the classical classifier (0.79), which was trained on the full train file, with no training of its own. This is the bar from Section 1, passed.
 - Retrieval brought one new failure. TF-IDF matches words, not meaning: for "What do i have to do to change my name?" it retrieved five rows that all begin "What do I have to do to ..." but are about PIN, card, and transfer. The model saw no fit and refused, where zero-shot had been right. A retriever that matches meaning (sentence embeddings) is the first item of future work.
 
-**Decision.** The final assistant uses retrieval few-shot with the constraint line and greedy decoding; this is the classifier inside `classify_intent` in `main.py`. Fine-tuning was left until a GPU was available. Section 12 records the LoRA run that was done afterwards. The assistant in `main.py` was not switched over to that adapter.
+**Decision.** The final assistant uses retrieval few-shot with the constraint line and greedy decoding; this is the classifier inside `classify_intent` in `main.py`. Fine-tuning was left until a GPU was available. Section 12 records the two LoRA runs that were done afterwards. `classify_intent` still builds the retrieval prompt. An adapter is attached only when `ADAPTER` is set.
 
 ## 9. Experiment 5 - Structured Output
 
@@ -382,6 +382,7 @@ Also used where they applied: variability under sampling (Section 7) and the sch
 | E4 JSON + schema | 0.43 (0.50 on valid rows) | 14 rejected by schema | 0 | yes |
 | **Retrieval few-shot + constraint (final assistant)** | **0.84** | 3 | 0 | yes |
 | LoRA on the baseline prompt (follow-up) | 0.93 | 0 | 0 | yes |
+| LoRA on the retrieval prompt (follow-up) | 0.94 | 0 | 0 | yes |
 | Reference: TF-IDF + logistic regression | 0.79 | 0 | n/a | yes |
 | Reference: 5-NN vote on retrieved rows | 0.77 | 0 | n/a | yes |
 
@@ -395,19 +396,21 @@ Also used where they applied: variability under sampling (Section 7) and the sch
 | **Held-out, retrieval assistant (used once to report that system)** | **0.77** | 4 |
 | Development, LoRA baseline prompt (follow-up) | 0.93 | 0 |
 | Held-out, LoRA baseline prompt (follow-up) | 0.93 | 0 |
+| Development, LoRA retrieval prompt (follow-up) | 0.94 | 0 |
+| Held-out, LoRA retrieval prompt (follow-up) | 0.91 | 0 |
 
 - The retrieval held-out score is 0.07 lower than its development score. Part of this is the normal optimism of choosing the best of 13 systems on one set; part is sampling noise (the 95% interval on 100 rows is about ±0.08); and the held-out set covers more intents (57 against 53). 0.77 is the number to quote for the retrieval assistant. It is level with the classical reference (0.79), not clearly above it: that system matches a trained classifier with no training of its own, and in addition writes the reply and drives the tool call.
-- Reproducibility: the notebook re-ran the experiments in Sections 5 to 11 from scratch and reproduced those numbers. Greedy runs are identical to the character; seeded sampling runs are identical on the same hardware. The LoRA numbers below come from `evaluation/results/results_finetune_dev.csv` and `results_finetune_heldout.csv`.
+- Reproducibility: the notebook re-ran the experiments in Sections 5 to 11 from scratch and reproduced those numbers. Greedy runs are identical to the character; seeded sampling runs are identical on the same hardware. The baseline-prompt LoRA numbers below come from `evaluation/results/results_finetune_dev.csv` and `results_finetune_heldout.csv`. The retrieval-prompt LoRA numbers come from `results_finetune_retrieval_dev.csv` and `results_finetune_retrieval_heldout.csv`.
 
 **LoRA fine-tune of the 1.5B model**
 
-After the retrieval decision, the same base model was fine-tuned with LoRA on a desktop NVIDIA GeForce RTX 3060 (12 GB). The run is `uv run -m src.finetune`. It took 2 hours 11 minutes. The base weights stay frozen. Trainable weights are rank-8 matrices on `q_proj`, `k_proj`, `v_proj`, and `o_proj` (`lora_alpha` 16, dropout 0.05), about 2.2 million parameters, 0.14% of the model. The saved adapter is `models/intent-lora/adapter_config.json` and `adapter_model.safetensors`.
+After the retrieval decision, the same base model was fine-tuned with LoRA on a desktop NVIDIA GeForce RTX 3060 (12 GB). This first run used the baseline prompt. It took 2 hours 11 minutes. The current `uv run -m src.finetune` is the retrieval-prompt run described below. The base weights stay frozen. Trainable weights are rank-8 matrices on `q_proj`, `k_proj`, `v_proj`, and `o_proj` (`lora_alpha` 16, dropout 0.05), about 2.2 million parameters, 0.14% of the model. The saved adapter is `models/intent-lora/adapter_config.json` and `adapter_model.safetensors`.
 
 The train file is `data/train.csv` only. `src/finetune.py` holds out 500 rows (`random_state=0`) as `data/finetune_val.csv` and trains on the other 9,503 rows (`data/finetune_train.csv`). `data/test.csv`, `evaluation/eval_subset.csv`, and `evaluation/heldout_subset.csv` are not used for training or for early stopping. Each train row is the baseline prompt from `src/baseline.py` (the task line, the 77 names, the message) and the assistant answer is the intent name. The loss is on those answer tokens only.
 
 Training ran for 3 epochs. Validation loss was 0.094 after epoch 1, 0.080 after epoch 2, and 0.078 after epoch 3. Early stopping was armed with patience 1 and did not fire, because the validation loss fell at every epoch. The kept weights are epoch 3 (step 3564).
 
-Scoring is `uv run -m evaluation.finetune_eval`. It loads the base model plus the adapter, uses the same baseline prompt as training, and decodes greedily. It does not use the five retrieved examples. Results: `evaluation/results/results_finetune_dev.csv`, `evaluation/results/results_finetune_heldout.csv`, and `evaluation/results/finetune_scores.md`.
+Scoring for this adapter loaded the base model plus `models/intent-lora/`, used the same baseline prompt as training, and decoded greedily. It did not use the five retrieved examples. Results: `evaluation/results/results_finetune_dev.csv`, `evaluation/results/results_finetune_heldout.csv`, and `evaluation/results/finetune_scores.md`. The current `uv run -m evaluation.finetune_eval` scores the retrieval-prompt adapter instead.
 
 | Subset | LoRA, baseline prompt | Retrieval assistant | No valid intent (LoRA) |
 |---|---|---|---|
@@ -416,7 +419,22 @@ Scoring is `uv run -m evaluation.finetune_eval`. It loads the base model plus th
 
 Seven messages are wrong on each subset. Every error is a neighbouring intent, the same failure type as before. On the development subset, "When can I expect to receive my new card?" is `card_delivery_estimate` in the file and `card_arrival` from the model. On the held-out subset, "When will my transfer go through?" is `pending_transfer` in the file and `transfer_timing` from the model.
 
-The 0.93 figures are not a new score for `main.py`. `classify_intent` still uses the retrieval prompt. The adapter is attached only when `ADAPTER` is set (`.env` points it at `models/intent-lora`). The reply text and the tool actions were not re-scored. The commands and the file list are in `docs/FINETUNE.md`.
+The 0.93 figures are not a new score for `main.py`. `classify_intent` still uses the retrieval prompt. The adapter is attached only when `ADAPTER` is set. That first adapter was trained without the five examples, so it does not match the prompt `main.py` sends. The reply text and the tool actions were not re-scored.
+
+**LoRA on the retrieval prompt**
+
+The same split, LoRA settings, and GPU were used for a second run. Each training row is the retrieval prompt: the task line, the reply rule, and the 5 most similar messages from the other 9,503 training rows (TF-IDF cosine). The current row is left out, so its label is not one of the examples. Validation prompts take their five examples from those 9,503 rows only. The run is the current `uv run -m src.finetune`. It took 2 hours 53 minutes. The saved adapter is `models/intent-lora-retrieval/adapter_config.json` and `adapter_model.safetensors`. The older folder `models/intent-lora/` is unchanged.
+
+Validation loss was 0.0709 after epoch 1, 0.0663 after epoch 2, and 0.0746 after epoch 3. The kept weights are epoch 2 (step 2376).
+
+Scoring is `uv run -m evaluation.finetune_eval`. It loads this adapter, uses `build_prompt` from `src/retrieval.py` (five examples from the full train file; the test rows are not in that file), and decodes greedily. Results: `evaluation/results/results_finetune_retrieval_dev.csv`, `evaluation/results/results_finetune_retrieval_heldout.csv`, and `evaluation/results/finetune_retrieval_scores.md`.
+
+| Subset | LoRA, retrieval prompt | Retrieval assistant, no adapter | LoRA, baseline prompt | No valid intent |
+|---|---|---|---|---|
+| Development | **0.94** | 0.84 | 0.93 | 0 |
+| Held-out | **0.91** | 0.77 | 0.93 | 0 |
+
+Six development messages and nine held-out messages are wrong. The errors are still neighbouring intents. On the development subset, "How long should my new card take to arrive?" is `card_arrival` in the file and `card_delivery_estimate` from the model, and "When can I expect to receive my new card?" goes the other way. This score uses the same prompt shape as `classify_intent`. It is still the intent step only. The reply text and the tool actions were not re-scored. Set `ADAPTER=models/intent-lora-retrieval` to attach this adapter. The commands are in `docs/FINETUNE.md`.
 
 **Same pipeline, second model**
 
@@ -472,7 +490,7 @@ The assistant can trigger actions on a bank account from free text written by an
 
 ## 14. Conclusion
 
-We set out to build a reliable prompted system around a small pretrained language model, and to learn through experiments what makes it reliable. The answer for this task is specific. Prompt wording and decoding settings, the levers most often discussed, moved accuracy by at most 0.03. Output format responded strongly to a single constraint line and to a JSON schema with an enumeration. Accuracy responded to one thing: putting the right labelled examples in front of the model. That took it from 0.43 to 0.84 on the development set and to 0.77 on untouched rows, level with a trained classical classifier without any training. The model could not be trusted to run the control flow; the code had to. The same pipeline on a second model from another vendor (Phi-4-mini, 3.8B) gave the same picture at a higher level: every lever behaved the same way, and the final system reached 0.87 on the held-out rows, above the classical reference. A later LoRA fine-tune stored those label boundaries in the 1.5B model itself. With the training prompt and no retrieved examples, accuracy was 0.93 on the development subset and 0.93 on the held-out subset, above both the retrieval assistant (0.84 and 0.77) and the classical reference (0.79). The remaining errors are still neighbouring intents. The retrieval assistant in `main.py` is unchanged; the 0.93 score is the adapter classifier only. The final assistant combines the earlier conclusions, and every number is traceable to a table in this report and to a result file in the repository.
+We set out to build a reliable prompted system around a small pretrained language model, and to learn through experiments what makes it reliable. The answer for this task is specific. Prompt wording and decoding settings, the levers most often discussed, moved accuracy by at most 0.03. Output format responded strongly to a single constraint line and to a JSON schema with an enumeration. Accuracy responded to one thing: putting the right labelled examples in front of the model. That took it from 0.43 to 0.84 on the development set and to 0.77 on untouched rows, level with a trained classical classifier without any training. The model could not be trusted to run the control flow; the code had to. The same pipeline on a second model from another vendor (Phi-4-mini, 3.8B) gave the same picture at a higher level: every lever behaved the same way, and the final system reached 0.87 on the held-out rows, above the classical reference. A later LoRA fine-tune stored those label boundaries in the 1.5B model itself. With the baseline training prompt and no retrieved examples, accuracy was 0.93 on the development subset and 0.93 on the held-out subset, above both the retrieval assistant (0.84 and 0.77) and the classical reference (0.79). A second adapter, trained on the retrieval prompt, scored 0.94 and 0.91 on the same subsets. The remaining errors are still neighbouring intents. `classify_intent` still builds the retrieval prompt; either adapter is used only when `ADAPTER` is set. The 0.93 score is the baseline-prompt classifier. The 0.94 and 0.91 scores are the retrieval-prompt classifier. The final assistant combines the earlier conclusions, and every number is traceable to a table in this report and to a result file in the repository.
 
 ## References
 
@@ -508,8 +526,8 @@ uv run -m src.structured                    # E4, ~3 min
 uv run -m evaluation.reference_classifier   # TF-IDF + logistic regression, seconds
 uv run -m src.retrieval                     # adaptation, ~2 min
 uv run -m evaluation.final_eval             # final system on the held-out subset, ~2 min
-uv run -m src.finetune                      # LoRA follow-up, ~2 h 11 min on an RTX 3060 12 GB
-uv run -m evaluation.finetune_eval          # LoRA scores on both subsets
+uv run -m src.finetune                      # retrieval-prompt LoRA, ~2 h 53 min on an RTX 3060 12 GB; writes models/intent-lora-retrieval/
+uv run -m evaluation.finetune_eval          # scores that adapter (0.94 / 0.91). The baseline-prompt adapter in models/intent-lora/ is an earlier run (~2 h 11 min, 0.93 / 0.93)
 uv run main.py                              # final assistant, interactive
 ```
 
@@ -534,7 +552,8 @@ Every experiment is scored on the same 100 development rows. What changes is how
 | Reference: TF-IDF + logistic regression | What a trained classical classifier scores on the same rows: the bar to beat | Development subset | Trained on all 10,003 rows | all, through training |
 | Reference: 5-NN vote | How much of the retrieval result comes from the examples alone, without the LLM | Development subset | Same 5 retrieved rows as the retrieval experiment; majority label, no LLM | 5 |
 | E7 Final system, held-out run | The honest accuracy of the chosen system on rows no decision was made on | **Held-out subset**, 100 rows | Same as retrieval few-shot + constraint | 5, different for each message |
-| LoRA follow-up | Whether training the 1.5B model on the train split beats retrieval, with no examples in the prompt | Development subset and held-out subset | 9,503 train rows update the adapter; 500 train rows are the validation loss. Test rows are not used | 0 per message; the boundaries are in the weights |
+| LoRA follow-up, baseline prompt | Whether training the 1.5B model on the train split beats retrieval, with no examples in the prompt | Development subset and held-out subset | 9,503 train rows update the adapter; 500 train rows are the validation loss. Test rows are not used | 0 per message; the boundaries are in the weights |
+| LoRA follow-up, retrieval prompt | Whether the same training on the retrieval prompt beats retrieval | Development subset and held-out subset | Same 9,503 / 500 split. Each prompt also shows 5 similar rows from the other training rows | 5 per message, plus the boundaries in the weights |
 | E7 Final system, agent demo | Whether the full loop (classify, tool call, reply) works end to end | 4 hand-written messages | Same as retrieval few-shot + constraint | 5 |
 
 *Note on the two reference rows.* They are not part of the product. They exist to answer "compared to what?". TF-IDF + logistic regression is the textbook text classifier: it trains in seconds on a CPU with no prompt and no GPU, and it was the classifier in the first version of this project before the LLM took over intent detection. Its 0.79 is the bar the LLM must pass to justify its cost. The 5-NN vote uses the same 5 retrieved examples as the retrieval experiment but takes a majority label without the LLM; it shows how much of the retrieval result comes from the examples alone (0.77) and how much the LLM adds on top (0.84).
@@ -899,7 +918,8 @@ All files are in `evaluation/results/` (Qwen2.5-1.5B, the default model) and `ev
 | `results_retrieval.csv` | Adaptation (Section 8) | `knn_vote` (majority label of the 5 retrieved rows), `knn_correct` |
 | `results_tfidf_logreg.csv` | Classical reference (Section 8) | no `output` |
 | `results_heldout.csv` | Final system on the held-out subset (Section 12) | no `output` |
-| `results_finetune_dev.csv`, `results_finetune_heldout.csv` | LoRA follow-up on the two subsets (Section 12) | |
+| `results_finetune_dev.csv`, `results_finetune_heldout.csv` | LoRA on the baseline prompt (Section 12) | |
+| `results_finetune_retrieval_dev.csv`, `results_finetune_retrieval_heldout.csv` | LoRA on the retrieval prompt (Section 12). Summary table: `finetune_retrieval_scores.md` | |
 
 **Notes on the files (Sections 5 to 9)**
 
@@ -927,7 +947,7 @@ At temperature 1.5, 7 outputs contained no valid label. They are not near-misses
 | Where the knowledge lives | In prompt text written by us | In the train file, selected at run time | In the weights |
 | Training and hardware | None; laptop | None; a TF-IDF index over 10,003 rows, built in seconds; laptop | A training loop on a GPU; not possible on an 8 GB laptop |
 | Cost to add a new intent | Edit the prompt | Add labelled rows to the file | Retrain |
-| Evidence we had | Five prompts moved accuracy by 0.03; 77 descriptions would push the prompt past what a 1.5B model uses well | A 5-NN vote on retrieved rows, with no LLM, scores 0.77: the train file holds the boundary knowledge | At decision time, none of our own; published fine-tuned models exceed 0.90. The Section 12 follow-up later scored 0.93 |
+| Evidence we had | Five prompts moved accuracy by 0.03; 77 descriptions would push the prompt past what a 1.5B model uses well | A 5-NN vote on retrieved rows, with no LLM, scores 0.77: the train file holds the boundary knowledge | At decision time, none of our own; published fine-tuned models exceed 0.90. The Section 12 follow-up later scored 0.93 on the baseline prompt and 0.94 / 0.91 on the retrieval prompt |
 | Main risk | Already shown flat | A bad retrieval misleads the model | Overfitting 77 classes on 10k rows; losing the "no training" property; cannot be run or debugged on our hardware |
 
 **Qwen and Phi compared in detail (Section 12)**
