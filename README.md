@@ -13,6 +13,10 @@ The project has two parts:
 2. **The final assistant** (`main.py`) that uses the best settings from the
    experiments.
 
+A later LoRA follow-up trains an intent adapter. The commands are in
+`docs/FINETUNE.md`. Those scores are for the intent name only. They are
+not a new score for `main.py`.
+
 ## Requirements
 
 - Python 3.13 or later
@@ -79,10 +83,15 @@ Times are for an M3 Mac with 8 GB RAM.
 | Adaptation (retrieval) | `uv run -m src.retrieval` | `results_retrieval.csv` | 2 min |
 | Reference classifier | `uv run -m evaluation.reference_classifier` | `results_tfidf_logreg.csv` | seconds |
 | Final, held-out | `uv run -m evaluation.final_eval` | `results_heldout.csv` | 2 min |
+| LoRA train | `uv run -m src.finetune` | `models/intent-lora-retrieval/` | 2 h 53 min, RTX 3060 12 GB |
+| LoRA score | `uv run -m evaluation.finetune_eval` | `results_finetune_retrieval_dev.csv`, `results_finetune_retrieval_heldout.csv` | minutes on that GPU |
 
 The experiments use `evaluation/eval_subset.csv` (development set) to compare
 approaches. `evaluation/final_eval.py` runs the chosen system once on
-`evaluation/heldout_subset.csv`, 100 different test rows that no experiment used.
+`evaluation/heldout_subset.csv`, 100 different test rows. The LoRA scorer
+reads that file too. The earlier baseline-prompt adapter is already in
+`models/intent-lora/` (0.93 on both subsets). The current train command
+does not write that folder.
 
 You do not have to rerun the experiments to read the results. All
 `results_*.csv` files are in `evaluation/results/`.
@@ -104,9 +113,9 @@ them. `evaluation/results/phi4/` holds the same 15 files from a run with
 
 ## Notebooks
 
-`notebooks/banking_agent.ipynb` runs every command in the table above in
-order, shows the result tables, and runs the live demo. "Run all" takes
-about 21 minutes on an M3 Mac. The outputs are saved in the file, so you
+`notebooks/banking_agent.ipynb` runs the experiment commands in the table
+above, except the two LoRA rows, shows the result tables, and runs the
+live demo. "Run all" takes about 21 minutes on an M3 Mac. The outputs are saved in the file, so you
 can read the results without running it. To run it in about one minute,
 skip the `%run -m <module>` cells; the result cells read the saved CSV
 files.
@@ -135,17 +144,22 @@ by `uv sync`.
 | `src/decoding.py` | E3. Greedy, temperature 0.7, temperature 1.5, top-k 50, top-p 0.9. |
 | `src/structured.py` | E4. JSON output validated with `jsonschema`. |
 | `src/retrieval.py` | Adaptation. Five examples chosen by TF-IDF similarity. |
+| `src/finetune.py` | LoRA training on the retrieval prompt. Saves `models/intent-lora-retrieval/`. |
+| `evaluation/finetune_eval.py` | Scores that adapter on the development subset, then the held-out subset. |
 | `data/train.csv`, `data/test.csv` | BANKING77 train and test splits (local copies from the PolyAI GitHub repository). |
 | `evaluation/make_eval_subset.py` | Creates `eval_subset.csv` and `heldout_subset.csv` from `data/test.csv`. |
 | `evaluation/reference_classifier.py` | TF-IDF + logistic regression, trained on the train split, scored on the development subset. The classical bar to beat. |
 | `evaluation/final_eval.py` | Runs the final system once on the held-out subset. |
 | `evaluation/eval_subset.csv` | Development set: the 100 test messages used by every experiment. |
-| `evaluation/heldout_subset.csv` | Held-out set: 100 other test messages, used only by `final_eval.py`. |
+| `evaluation/heldout_subset.csv` | Held-out set: 100 other test messages, used by `final_eval.py` and `finetune_eval.py`. |
 | `evaluation/results/results_*.csv` | Output of each experiment with the default model (Qwen2.5-1.5B). |
 | `evaluation/results/phi4/results_*.csv` | The same experiments with `microsoft/Phi-4-mini-instruct`. |
 | `docs/PROGRESS.md` | Step-by-step log: what we did, why, and what we found. |
 | `docs/FAILURES.md` | E6. Failure types and worked failure cases. |
 | `docs/GAPS.md` | Gap analysis of the first version against the assignment. |
+| `docs/FINETUNE.md` | Commands to train, score, and load a LoRA intent adapter. |
+| `models/intent-lora/` | Earlier LoRA adapter, trained on the baseline prompt (0.93 / 0.93). |
+| `models/intent-lora-retrieval/` | LoRA adapter trained on the retrieval prompt (0.94 / 0.91). |
 | `docs/FINAL_REPORT.md` | The technical report. Convert with `pandoc docs/FINAL_REPORT.md -f gfm --resource-path=docs -o FINAL_REPORT.docx`. |
 | `docs/SLIDES.md`, `docs/SLIDES.pptx`, `docs/SCRIPT.md` | Presentation slides (Marp source and PPTX) and the per-member speaking script. |
 
@@ -159,12 +173,16 @@ by `uv sync`.
 | E4 JSON output, schema-valid rows | 0.50 | 0.57 |
 | TF-IDF + Logistic Regression (classic baseline) | 0.79 | 0.79 |
 | Retrieval few-shot (used in `main.py`) | 0.84 | 0.92 |
+| LoRA, baseline prompt (intent only) | 0.93 | — |
+| LoRA, retrieval prompt (intent only) | 0.94 | — |
 
 Accuracy on the 100 development messages.
 
 | Final system, `main.py` classifier run once on 100 held-out messages | Qwen2.5-1.5B | Phi-4-mini 3.8B |
 |---|---|---|
 | Accuracy | **0.77** | **0.87** |
+| LoRA, baseline prompt, same 100 messages (intent only) | 0.93 | — |
+| LoRA, retrieval prompt, same 100 messages (intent only) | 0.91 | — |
 
 Read `docs/PROGRESS.md` for the reasons behind each number.
 
