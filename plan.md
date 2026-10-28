@@ -24,11 +24,29 @@ Those three files come from the BANKING77 test split. They stay unseen until sco
 
 ## Example format
 
-Each train row becomes one chat turn, in the same shape as `src/baseline.py`:
+Each train row becomes one chat turn, in the same shape as `src/retrieval.py`. That prompt is the final intent prompt. On the base model it scored 0.84 on the development subset and 0.77 on the held-out subset.
+
+For each row, take the 5 most similar messages from the other training rows (TF-IDF cosine, same index as `retrieve` in `src/retrieval.py`). Leave the current row out, so its label is not one of the examples.
 
 ```
 User: Classify the customer message into one of these intents:
 <77 names>
+Reply with the exact intent name from the list and nothing else. Always choose exactly one intent.
+
+Message: <similar text 1>
+Intent: <its category>
+
+Message: <similar text 2>
+Intent: <its category>
+
+Message: <similar text 3>
+Intent: <its category>
+
+Message: <similar text 4>
+Intent: <its category>
+
+Message: <similar text 5>
+Intent: <its category>
 
 Message: <text>
 Intent:
@@ -57,8 +75,8 @@ After training, run the adapter on the two existing subsets. Compare accuracy wi
 
 ## Steps
 
-1. Build the train and validation tables from `data/train.csv`.
-2. Train the LoRA adapter with `uv`.
+1. Build the train and validation tables from `data/train.csv`. For each row, attach the 5 retrieved examples from the other training rows.
+2. Train the LoRA adapter with `uv` on that retrieval prompt.
 3. Load the adapter in `generate` when `ADAPTER` is set.
 4. Score the development subset, then the held-out subset once.
 5. Write the two scores next to the retrieval scores.

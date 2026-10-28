@@ -188,7 +188,11 @@ def handle(message: str, pending: str | None = None) -> tuple[str, str | None]:
     # Sampling is used only here, for the free-text reply (E3 conclusion).
     # An information intent does not ask a question and does not wait for confirmation.
     reply = generate(messages, max_new_tokens=80, tools=TOOLS, do_sample=True, temperature=0.7).strip()
-    return statements_only(reply, tool_text(output)), None
+    reply = statements_only(reply, tool_text(output))
+    reference = output.get("reference")
+    if reference and reference not in reply:
+        reply = f"{reply.rstrip()} Reference {reference}."
+    return reply, None
 
 
 if __name__ == "__main__":
