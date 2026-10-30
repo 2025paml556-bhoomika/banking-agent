@@ -1,157 +1,199 @@
 # Demo script, 10 minutes, 4 speakers
 
-Order: Shravan → Girish → Mohit → Bhoomika. Bhoomika closes with the live demo.
-Each block lists: what to say, what to show on screen, and which metrics to point at.
+Order: Shravan → Girish → Mohit → Bhoomika. Bhoomika ends with the live demo.
+**SHOW** = put this file on the screen. **SAY** = speak these lines.
 
-## Before the session (any member, 5 minutes before)
+## Before the session (5 minutes before)
 
-- Start `uv run ui.py` and send one test message, so the model is loaded and warm.
-- Open these in editor tabs, in order: `data/train.csv`, `src/baseline.py`, `src/prompts.py`,
-  `main.py`, `src/retrieval.py`, `docs/FINAL_REPORT.md`, `README.md`.
+- Start `uv run ui.py` and send one test message. This loads the model so the demo is fast.
+- Open these tabs in the editor, in this order: `data/train.csv`, `src/baseline.py`,
+  `src/prompts.py`, `main.py`, `src/decoding.py`, `src/structured.py`, `src/retrieval.py`,
+  `docs/FINAL_REPORT.md`.
 - Open http://127.0.0.1:7860 in the browser.
 
 ---
 
 ## Shravan, 0:00 – 2:00. Problem, dataset, baseline
 
-**Say.** "A customer of an online bank writes one free-text message. The system must find which
-of 77 intents it is, run the right backend action, and reply. The dataset is BANKING77: 13,083
-labelled messages. Many intents are near-synonyms, and that one property causes most errors."
+**SHOW: `data/train.csv`.** Scroll a little so people see real rows.
 
-**Show 1: `data/train.csv`.** Scroll to show real rows. Point at `card_arrival` against
-`card_delivery_estimate`: three similar messages, two labels.
+**SAY:**
+"Good morning. Our project is a banking support assistant. A customer types one message in
+their own words, like 'I lost my card, please block it'. The system must find which of 77
+request types it is, run the right backend action, and write a reply.
 
-**Say.** "We evaluate on two fixed subsets of 100 test rows. The development set compares
-approaches. The held-out set is touched once, at the end, for the honest number."
+The dataset is BANKING77. It has 13,083 real customer messages, each with a label. Look at
+these rows. 'How do I track my card' and 'I need my card quickly' look the same, but they have
+two different labels: card arrival and card delivery estimate. Many labels are this close.
+This one fact causes most of our errors.
 
-**Show 2: `src/baseline.py`.** Point at `TASK` (line 13) and `build_prompt` (line 17): the
-simplest prompt is the task line, the 77 names, the message.
+We test on two fixed sets of 100 messages. The development set is for comparing ideas. The
+held-out set is kept untouched and is used only once, at the end, for the honest final number."
 
-**Metrics to state** (README "Results in short" table, or report Section 5):
+**SHOW: `src/baseline.py`.** Point at `TASK` (line 13) and `build_prompt` (line 17).
 
-- Baseline accuracy **0.41**; 57 of 100 outputs had a preamble sentence.
-- The bar to beat: TF-IDF + logistic regression, trained on all 10,003 rows: **0.79**.
-- 45 of the 59 errors are near-synonym or favourite-label confusions: missing knowledge,
-  not a missing instruction.
+**SAY:**
+"We started with the simplest possible prompt: the task line, the 77 label names, and the
+message. Nothing else. The result was 0.41. Forty-one correct out of one hundred. And 57 of
+the outputs had an extra sentence before the answer.
 
-**Report back-up:** Sections 1, 2, 5; Appendix B (what data each experiment used).
+For comparison, a classic machine learning classifier, TF-IDF with logistic regression,
+trained on all ten thousand rows, scores 0.79 on the same messages. That is the bar our
+language model has to beat.
 
-Handover: "The first idea was better instructions. Mohit shows what instructions can and
-cannot fix — after Girish shows the model we steer."
+Most of the 59 errors were the near-twin labels you just saw. The model knows banking words.
+It does not know where this dataset draws the line between two similar labels. That is missing
+knowledge, not a missing instruction. Keep that thought — it explains the whole project.
+
+Girish will now show you the model we used, and two other models we built ourselves."
 
 ---
 
 ## Girish, 2:00 – 4:00. Model choice, architecture, VAE and GAN
 
-**Say.** "We need text in, text out, and run-time control without training. Only an
-autoregressive language model gives all three. We did not take that on faith: we trained the
-two other families ourselves and measured them."
+**SHOW: `docs/FINAL_REPORT.md`, Section 3,** the family comparison table.
 
-**Show 1: report Section 3** (`docs/FINAL_REPORT.md`). Point at the family comparison table:
-VAE and GAN need extra encoders, give weak discrete text, and have no pretrained checkpoints.
+**SAY:**
+"Why a language model and not a VAE or a GAN? Our task is text in, text out, with no training.
+A language model does this natively. A VAE or a GAN would need extra parts for text, and no
+good pretrained one exists.
 
-**Show 2: report Section 4.** The five stages on a real message: 7 tokens, embedding tensor
-(1, 7, 1536), 28 decoder layers, the LM head over 151,936 tokens. The prompt's whole job is to
-move probability onto the first token of the right intent name.
+We did not just claim this. We built both and measured them. We trained a text VAE on the
+banking messages, and a GAN on top of it. The GAN cannot learn on text directly, because text
+is made of discrete tokens, so it learns inside the VAE's latent space instead."
 
-**Show 3: report Section 12, "VAE and GAN follow-up"** (or `evaluation/results/samples_gan.csv`
-for real synthetic messages).
+**SHOW: `docs/FINAL_REPORT.md`, Section 4,** the five-stage table.
 
-**Metrics to state** (`evaluation/results/vae_gan_results.json`, `gan_ablation.json`,
-`guard_eval.json`):
+**SAY:**
+"Our model is Qwen 2.5, 1.5 billion parameters. It runs on a normal laptop. Here is what one
+call looks like. The message becomes 7 tokens. Each token becomes a vector of 1,536 numbers.
+28 transformer layers read them. The output is a probability for every one of 151,936 possible
+next tokens. The whole project is about one thing: moving that probability onto the first
+token of the correct label."
 
-- Synthetic text intent fidelity: VAE **56.8%**, GAN **63.2%**. Far below the LLM: the
-  Section 3 choice, now measured.
-- GAN ablation: latent Fréchet distance falls from **35.4** (500 steps) to **4.0** (8,000 steps).
-- Augmentation: within noise at full data; **+0.05** accuracy in the low-resource setting.
-- Out-of-scope guard: catches **90%** of off-topic messages at a **2%** false-reject rate.
+**SHOW: `evaluation/results/samples_gan.csv`** — real synthetic messages.
 
-**Report back-up:** Sections 3, 4, and the Section 12 follow-up.
+**SAY:**
+"And here is what our own generators produce. The messages look real, but only 57 percent of
+the VAE messages and 63 percent of the GAN messages actually express the intent we asked for.
+The language model classifies at 84 percent. So the choice was right.
 
-Handover: "The model is fixed. Everything else is steering. Mohit starts with the prompt."
+But the small models are still useful at the edges. When we cut the training data to ten
+percent, adding synthetic messages raised accuracy by 5 points. And the VAE gives us a cheap
+guard: it catches 90 percent of off-topic messages, like cooking questions, while rejecting
+only 2 percent of real banking messages.
 
----
-
-## Mohit, 4:00 – 6:00. Prompt engineering, programmatic prompting, tool calling
-
-**Say.** "No prompt in this project is a hand-written string. Every prompt is built by a
-function. One parameter switches the style, so one loop compares five styles fairly."
-
-**Show 1: `src/prompts.py`**, `build_prompt` (lines 16–28): five styles from the same parts.
-
-**Metrics to state** (report Section 6 table):
-
-- Five prompt styles: accuracy **0.40 to 0.43**. Flat.
-- But the constraint line cut preambles from **57 to 0**. Instructions fix format, not knowledge.
-
-**Show 2: `main.py`.** Point at `TOOLS` (line 106), the `SYSTEM` prompt (line 133), and
-`handle` (line 173): the code fixes the tool order, the model only writes the reply.
-
-**Say.** "We tested letting the model drive the tools, the usual agent pattern: 0 of 8 correct
-sequences. It invented the argument BLOCK_CARD_LOST and claimed it had blocked a card when it
-had not. With a small model, control belongs in code."
-
-**Metrics to state** (report Section 12, second-model table):
-
-- Same pipeline, one environment variable changed, Phi-4-mini 3.8B: every lever behaved the
-  same; held-out **0.87**, above the classical 0.79. The method is not tied to one model.
-
-**Report back-up:** Sections 6, 10, 11; Appendix E (four real runs with tool transcripts).
-
-Handover: "Instructions could not add knowledge. Bhoomika shows what did."
+The model is fixed. Everything else is steering. Mohit starts with the prompt."
 
 ---
 
-## Bhoomika, 6:00 – 10:00. Decoding, structured output, RAG, LoRA, and the live demo
+## Mohit, 4:00 – 6:00. Prompts, programmatic prompting, tool calling
 
-**Say (6:00 – 7:45).** "Three more levers, then the one that worked." Show the code file for
-each lever; use the report Section 12 all-systems table only to state the numbers.
+**SHOW: `src/prompts.py`,** `build_prompt` (lines 16–28).
 
-- **Decoding. Show `src/decoding.py`** (the `SETTINGS` dict: greedy, two temperatures, top-k,
-  top-p; seeded). Numbers: **0.38 to 0.44**, greedy 0.43. Randomness only moves away from the
-  model's best guess. Decision: greedy for the label, sampling for the reply.
-- **Structured output. Show `src/structured.py`** (the JSON schema with the 77-name `enum`).
-  Numbers: 100 of 100 outputs parsed as JSON, **14 rejected by the schema** — all invented
-  intent names. Open `evaluation/results/results_structured.csv` and point at one rejected row:
-  `get_virtual_card` with the validator error. The enum turns hallucination into a handled error.
-- **RAG. Show `src/retrieval.py`** (`retrieve` and `build_prompt`, lines 23–30: five lines of
-  TF-IDF, no training). Numbers: **0.84** on development against 0.79 for the trained classical
-  classifier and 0.77 for a 5-NN vote with no LLM. The correct label was among the five
-  examples 94 times of 100. Open `evaluation/results/results_retrieval.csv` and point at the
-  `knn_vote` column: the model beats its own examples.
-- **Held-out. Show report Section 12, the held-out table.** Run once: **0.77**. The honest
-  number. Level with the classical bar.
-- **LoRA. Show `src/finetune.py`** (the `LoraConfig`: rank 8, 0.14% of the weights) and
-  `evaluation/results/finetune_retrieval_scores.md` for the scores. Numbers: retrieval prompt
-  **0.94 development, 0.91 held-out**; baseline prompt 0.93 both. Trained on the train split
-  only, RTX 3060.
+**SAY:**
+"No prompt in this project is written by hand. Every prompt is built by a function like this
+one. One parameter switches the style. So one loop tests five prompt styles on the same 100
+messages, and the comparison is fair.
 
-**Live demo (7:45 – 10:00).** Switch to the browser (`ui.py`, already running). Point at the
-tool-call panel on the right after every message.
+The result surprised us. Five styles, and accuracy stayed between 0.40 and 0.43. Flat. But the
+format changed completely: one constraint line, 'reply with the exact intent name and nothing
+else', cut the extra text from 57 outputs to zero.
 
-1. Type `How long does a transfer take?` — information intent, two tool calls, the reply uses
-   only the tool result.
-2. Type `I lost my card, please block it` — the assistant asks for confirmation first, because
-   a wrong block is irreversible. Reply `yes` — the reference number appears.
-3. Type `My card payment was declined` — unsupported intent, routed to a human agent by design.
+So here is lesson one of this project: instructions fix the format. They do not add knowledge."
 
-**Close.** "Every number you saw is a CSV or JSON file in the repository, and the notebook
-reproduces all of them in about 21 minutes. Thank you — questions welcome."
+**SHOW: `main.py`.** Point at `TOOLS` (line 106) and `handle` (line 173).
+
+**SAY:**
+"The assistant has two tools: classify the message, then run the banking action. We first let
+the model decide when to call the tools. That is the usual agent pattern. It failed completely:
+zero correct sequences out of eight tries. It invented a fake argument, BLOCK_CARD_LOST, and
+once it said 'I have blocked your card' without calling any tool at all. In a bank, that is
+the worst possible failure.
+
+So in the final system, the code decides the tool order. The model only writes the reply.
+Lesson two: with a small model, control belongs in the code.
+
+One more check: we ran the whole pipeline again with a different model from a different
+company, Phi-4-mini from Microsoft. One environment variable changed, nothing else. Every
+lesson held, and the final score on the held-out set was 0.87 — above the classic classifier.
+
+Instructions could not add knowledge. Bhoomika shows what did."
+
+---
+
+## Bhoomika, 6:00 – 10:00. Decoding, schema, RAG, LoRA, and the live demo
+
+**SHOW: `src/decoding.py`,** the `SETTINGS` dict (line 11).
+
+**SAY:**
+"We tested five decoding settings: greedy, two temperatures, top-k, and top-p. Accuracy moved
+between 0.38 and 0.44. Randomness cannot help a one-label answer — it can only move away from
+the model's best guess. So: greedy for the label, sampling only for the reply text."
+
+**SHOW: `src/structured.py`,** the JSON schema with the 77-name `enum`.
+
+**SAY:**
+"Next, we made the model answer in JSON and validated it against this schema. All 100 outputs
+were valid JSON, but 14 were rejected: all of them invented label names, like get_virtual_card
+instead of getting_virtual_card. They look real but they are not in the list. The schema turns
+this hallucination into a safe, handled error."
+
+**SHOW: `src/retrieval.py`,** `retrieve` and `build_prompt` (lines 23–30).
+
+**SAY:**
+"And here is the step that worked. Instead of five random examples, we give the model the five
+training messages most similar to the customer's message. That is all this code does — a small
+TF-IDF search, no training at all.
+
+Accuracy jumped from 0.43 to 0.84. The trained classic classifier scores 0.79. We passed it
+with no training. The correct label was inside the five examples 94 times out of 100. And the
+model is not just copying its examples: against a plain majority vote on the same five
+examples, it wins 12 rows and loses 5.
+
+On the untouched held-out set, run once, the score is 0.77. That is the honest number.
+
+Finally, we fine-tuned the same model with LoRA — a small adapter, 0.14 percent of the
+weights, on one desktop GPU. With the retrieval prompt it reaches 0.94 on development and 0.91
+on held-out. The label knowledge now lives in the weights.
+
+Now let me show you the real system."
+
+**SHOW: the browser (`ui.py`).** Point at the tool-call panel on the right after every message.
+
+**Demo steps and what to SAY:**
+
+1. Type `How long does a transfer take?`
+   "You see both tool calls on the right. The reply uses only the facts from the tool result.
+   The model cannot invent a fee or a delay."
+2. Type `I lost my card, please block it`
+   "The assistant does not block the card yet. Our classifier is right about 8 times in 10,
+   and a wrong block cannot be undone. So the code asks first."
+   Type `yes`.
+   "Now it acts, and the reply carries a reference number from the backend."
+3. Type `My card payment was declined`
+   "Disputes need a person. 26 of the 77 intents route to a human agent by design. When we are
+   not sure, we fail towards a human."
+
+**Closing SAY:**
+"Every number you heard today is a file in our repository, and one notebook reproduces all of
+them in about 21 minutes. Thank you. We are happy to take questions."
 
 ---
 
 ## If a question comes
 
-- **Why did held-out drop from 0.84 to 0.77?** The development set chose the approach, so its
-  score is optimistic by design. 0.77 is the honest number (Bhoomika or Shravan).
-- **Why not let the model pick the tools?** 0 of 8 correct sequences; it claimed actions it
-  did not do (Mohit).
-- **Why not use the VAE/GAN text directly?** 57 to 63% intent fidelity against 0.84 from the
-  LLM; it is support data, not a replacement (Girish).
-- **Is 0.87 against 0.77 significant?** On 100 rows the 95% interval is about ±0.08, so it is
-  at the edge, but the direction is the same on both subsets (Mohit).
+- **Why did the score drop from 0.84 to 0.77 on held-out?** The development set was used to
+  choose the approach, so its score is a little optimistic. 0.77 is the honest number.
+  (Bhoomika or Shravan)
+- **Why not let the model pick the tools?** We tried. Zero correct out of eight, and it claimed
+  actions it never did. (Mohit)
+- **Why not use the VAE or GAN text directly?** Only 57 to 63 percent of it expresses the right
+  intent. The LLM is at 84. The small models are support, not a replacement. (Girish)
+- **Is 0.87 versus 0.77 a real difference?** On 100 rows the error margin is about ±0.08, so it
+  is at the edge. But the direction is the same on both test sets. (Mohit)
 
 ## If time runs short
 
-Cut in this order: demo message 3, the GAN ablation numbers, the Phi-4 detail. Never cut the
-confirmation flow (demo message 2) or the all-systems table. Those two carry the grade.
+Cut in this order: demo message 3, the GAN numbers, the Phi-4 detail. Never cut demo message 2
+(the confirmation) or the retrieval numbers. Those two carry the grade.
