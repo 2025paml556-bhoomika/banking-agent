@@ -1024,7 +1024,7 @@ _[To be completed by the group. One row per member: name, ID, sections of the re
 
 | Member | ID | Report sections | Code / experiments | Presentation | Confirmed |
 |---|---|---|---|---|---|
-| | | | | | |
-| | | | | | |
-| | | | | | |
-| | | | | | |
+| Bhoomika Bathla | 2025paml556 | 7 (decoding), 8 (adaptation / RAG), 9 (structured output), 12 (LoRA fine-tune) | `src/decoding.py` (E3), `src/retrieval.py`, `src/structured.py` (E4), `src/finetune.py`, `evaluation/finetune_eval.py` | | |
+| Girish M | 2025paml612 | | | | |
+| TENDOLKAR MOHIT NARENDRA NEHA | 2025paml602 | | | | |
+| RAO SHRAVAN HARSHA JAYSHREE | 2025paml572 | | | | |
