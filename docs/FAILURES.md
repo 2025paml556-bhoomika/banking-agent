@@ -27,11 +27,32 @@ All numbers are on the fixed 100-row subset (`eval_subset.csv`), model
 | E3 same prompt, top-p 0.9 | 0.38 | 11 | 0 | no |
 | E4 JSON + schema | 0.43 (0.50 on valid rows) | 14 rejected by schema | 0 | yes |
 | Retrieval few-shot + constraint | **0.84** | 3 | 0 | yes |
+| LoRA, baseline prompt (follow-up) | 0.93 | 0 | 0 | yes |
+| LoRA, retrieval prompt (follow-up) | 0.94 | 0 | 0 | yes |
 | Reference: TF-IDF + LogReg | 0.79 | 0 | n/a | yes |
 | Reference: 5-NN vote, no LLM | 0.77 | 0 | n/a | yes |
 
 Across the four main systems (zero-shot, few-shot+constraint, JSON,
 retrieval): 24 rows were right in all four, 12 were wrong in all four.
+
+## The held-out run
+
+The retrieval system was run once on the 100 held-out rows that no
+experiment had touched (`results_heldout.csv`): accuracy **0.77**,
+4 rows with no valid intent. The 0.07 drop from 0.84 is the normal
+optimism of choosing the best system on the development set, plus
+sampling noise (±0.08 on 100 rows).
+
+Of the 23 held-out errors: 19 are near-synonym or favourite-label
+errors (types A, B), 4 are refusals (type D). No invented label (type C)
+reached the output, because the schema blocks them. A sample:
+
+| Input | Expected | Got | Type |
+|---|---|---|---|
+| Someone has my card number, freeze my account. | `compromised_card` | `lost_or_stolen_card` | A: same action, different cause |
+| I made this payment days ago so why hasn't it gone through yet? | `pending_card_payment` | `pending_transfer` | A, B |
+| Where can my card be delivered? | `order_physical_card` | `card_delivery_estimate` | A |
+| I want to skip verification of my identity. | `why_verify_identity` | (no valid intent) | D |
 
 ## Failure types
 
@@ -60,6 +81,9 @@ retrieval): 24 rows were right in all four, 12 were wrong in all four.
 | 9 | How do I exchange currency? | `exchange_via_app` | `supported_cards_and_currencies` (all systems) | All | A | The gold label assumes app context that is not in the message; `supported_cards_and_currencies` is a reasonable reading. The 5-NN vote was right, the LLM overrode it. | Accept as a dataset ambiguity; report it |
 | 10 | What foreign exchange rate will you use? | `exchange_rate` | `supported_cards_and_currencies` | E2 constraint | G-like | Same prompt + few-shot got this right; the constraint-only prompt lost it. Small prompt changes flip borderline rows. | Few-shot or retrieval |
 | 11 | when does the rate get determined | `exchange_rate` | `unable_to_verify_identity` | E3 temperature 1.5 | G | Greedy gave `exchange_rate`. High temperature sampled an unrelated label. | Greedy decoding for classification |
+| 12 | I lost my card, please block it (agent test) | classify, then handle | `handle_intent({'intent': 'BLOCK_CARD_LOST'})`; also "I have blocked your card" with no tool call | E7 model-driven tool loop | C | The model was allowed to drive the tool loop (0 of 8 correct sequences). It ignored the tool interface and invented the argument; once it claimed an action it never ran. | Code-driven tool order (adopted in `main.py`); the model only writes the reply |
+| 13 | yes (confirming a card block) | Reply states only the tool facts | "... keep your documents handy as we'll need them when you pick up your new card" | Final system, reply step | reply hallucination | The reply is sampled; the model added a plausible sentence the tool result does not contain | Template the action sentence; check the reply against the tool result |
+| 14 | I was charged twice (earlier tool text) | Point the customer to an agent | Tool said "a support ticket has not been opened"; the reply told the customer to open a support ticket | Final system, reply step | reply hallucination | The model turned a negative statement into an instruction | Write tool results as instructions, not negative statements (adopted) |
 
 ## What the analysis says
 
@@ -79,15 +103,40 @@ retrieval): 24 rows were right in all four, 12 were wrong in all four.
    customer.
 5. Some gold labels are debatable (cases 7 and 9). A small number of the
    remaining 16 errors are dataset ambiguity, not model failure.
+6. The model cannot be trusted with control flow (case 12). The reply
+   step can also hallucinate (cases 13, 14), so the system prompt forbids
+   new facts and the tool results are written as instructions.
+
+## Later results, same failure pattern
+
+- **LoRA fine-tune.** The baseline-prompt adapter is wrong on 7 rows per
+  subset (0.93 / 0.93); the retrieval-prompt adapter on 6 development and
+  9 held-out rows (0.94 / 0.91). Every error is a neighbouring intent
+  (type A), e.g. "When will my transfer go through?" is `pending_transfer`
+  in the file and `transfer_timing` from the model. Training moves the
+  boundary knowledge into the weights but does not remove the ambiguity.
+- **Second model (Phi-4-mini, 3.8B).** Same pipeline, one variable
+  changed. The failure types repeat: at temperature 1.5 it produced 21
+  outputs with no valid intent (type G); its 7 schema rejections are a
+  subset of Qwen's 14 (type C). On held-out, 10 rows are wrong for both
+  models, and all of them are near-synonym pairs (type A).
+- **VAE and GAN follow-up.** The generators have their own failure: only
+  56.8% (VAE) and 63.2% (GAN) of synthetic messages express the intended
+  intent, so unfiltered rows carry label noise. The out-of-scope guard
+  (`VAE_GUARD=1`) catches 90% of off-topic messages but falsely rejects
+  2% of real banking messages — the cost of any threshold guard.
 
 ## Reproduce
 
 ```bash
-uv run -m src.baseline      # E1
-uv run -m src.prompts       # E2
-uv run -m src.decoding      # E3
-uv run -m src.structured    # E4
-uv run -m src.retrieval     # adaptation
+uv run -m src.baseline            # E1
+uv run -m src.prompts             # E2
+uv run -m src.decoding            # E3
+uv run -m src.structured          # E4
+uv run -m src.retrieval           # adaptation
+uv run -m evaluation.final_eval   # held-out run
+uv run -m evaluation.finetune_eval  # LoRA scores (needs the adapter)
+uv run -m evaluation.guard_eval   # out-of-scope guard
 ```
 
 Each script writes `results_*.csv` with one row per test message:
