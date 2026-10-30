@@ -104,21 +104,27 @@ Handover: "Instructions could not add knowledge. Bhoomika shows what did."
 
 ## Bhoomika, 6:00 – 10:00. Decoding, structured output, RAG, LoRA, and the live demo
 
-**Say (6:00 – 7:45).** "Three more levers, then the one that worked."
+**Say (6:00 – 7:45).** "Three more levers, then the one that worked." Show the code file for
+each lever; use the report Section 12 all-systems table only to state the numbers.
 
-**Show 1: report Section 12, the all-systems table.** Walk it top to bottom:
-
-- Decoding (Section 7): greedy against four sampling settings, **0.38 to 0.44**. Randomness
-  only moves away from the best guess. Decision: greedy for the label, sampling for the reply.
-- Structured output (Section 9): 100 of 100 outputs parsed as JSON, **14 rejected by the
-  schema** — all invented intent names like `get_virtual_card`. The enum turns hallucination
-  into a handled error.
-- Retrieval (Section 8): five examples chosen by TF-IDF similarity per message. **0.84** on
-  development against 0.79 for the trained classical classifier, with no training. The correct
-  label was among the five examples 94 times of 100.
-- Held-out, run once: **0.77**. The honest number. Level with the classical bar.
-- LoRA (Section 12): rank-8 adapter, 0.14% of the weights, RTX 3060. Retrieval prompt:
-  **0.94 development, 0.91 held-out**. Baseline prompt: 0.93 both.
+- **Decoding. Show `src/decoding.py`** (the `SETTINGS` dict: greedy, two temperatures, top-k,
+  top-p; seeded). Numbers: **0.38 to 0.44**, greedy 0.43. Randomness only moves away from the
+  model's best guess. Decision: greedy for the label, sampling for the reply.
+- **Structured output. Show `src/structured.py`** (the JSON schema with the 77-name `enum`).
+  Numbers: 100 of 100 outputs parsed as JSON, **14 rejected by the schema** — all invented
+  intent names. Open `evaluation/results/results_structured.csv` and point at one rejected row:
+  `get_virtual_card` with the validator error. The enum turns hallucination into a handled error.
+- **RAG. Show `src/retrieval.py`** (`retrieve` and `build_prompt`, lines 23–30: five lines of
+  TF-IDF, no training). Numbers: **0.84** on development against 0.79 for the trained classical
+  classifier and 0.77 for a 5-NN vote with no LLM. The correct label was among the five
+  examples 94 times of 100. Open `evaluation/results/results_retrieval.csv` and point at the
+  `knn_vote` column: the model beats its own examples.
+- **Held-out. Show report Section 12, the held-out table.** Run once: **0.77**. The honest
+  number. Level with the classical bar.
+- **LoRA. Show `src/finetune.py`** (the `LoraConfig`: rank 8, 0.14% of the weights) and
+  `evaluation/results/finetune_retrieval_scores.md` for the scores. Numbers: retrieval prompt
+  **0.94 development, 0.91 held-out**; baseline prompt 0.93 both. Trained on the train split
+  only, RTX 3060.
 
 **Live demo (7:45 – 10:00).** Switch to the browser (`ui.py`, already running). Point at the
 tool-call panel on the right after every message.
