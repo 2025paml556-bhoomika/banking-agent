@@ -517,7 +517,7 @@ Times are for an Apple M3 with 8 GB RAM. `MODEL=microsoft/Phi-4-mini-instruct uv
 
 Notebook: `notebooks/banking_agent.ipynb` runs every command above in order and recomputes every number in this report (~21 min on an M3 Mac). Skip the `%run` cells to load the saved results in about one minute. On Colab the first cell clones the repository and links `evaluation/results/` to Google Drive; set `os.environ["MODEL"]` in that cell to run another model.
 
-Supporting documents in the repository: `docs/PROGRESS.md` (step-by-step log with explanations), `docs/FAILURES.md` (full evaluation and failure analysis), `docs/GAPS.md` (initial gap analysis), `docs/FINETUNE.md` (LoRA commands), `docs/SLIDES.md` and `docs/SCRIPT.md` (presentation).
+Supporting documents in the repository: `docs/PROGRESS.md` (step-by-step log with explanations), `docs/FAILURES.md` (full evaluation and failure analysis), `docs/FINETUNE.md` (LoRA commands), `docs/DEMO_SCRIPT.md` (the demo walkthrough).
 
 ## Appendix B. Data used by each experiment
 

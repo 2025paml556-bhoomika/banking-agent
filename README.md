@@ -158,12 +158,11 @@ by `uv sync`.
 | `evaluation/results/phi4/results_*.csv` | The same experiments with `microsoft/Phi-4-mini-instruct`. |
 | `docs/PROGRESS.md` | Step-by-step log: what we did, why, and what we found. |
 | `docs/FAILURES.md` | E6. Failure types and worked failure cases. |
-| `docs/GAPS.md` | Gap analysis of the first version against the assignment. |
 | `docs/FINETUNE.md` | Commands to train, score, and load a LoRA intent adapter. |
 | `models/intent-lora/` | Earlier LoRA adapter, trained on the baseline prompt (0.93 / 0.93). |
 | `models/intent-lora-retrieval/` | LoRA adapter trained on the retrieval prompt (0.94 / 0.91). |
 | `docs/FINAL_REPORT.md` | The technical report. Convert with `pandoc docs/FINAL_REPORT.md -f gfm --resource-path=docs -o FINAL_REPORT.docx`. Pandoc 3.13 writes a `title=""` attribute on images that makes Word reject the file; remove it with `python -c "import zipfile;  z=zipfile.ZipFile('FINAL_REPORT.docx'); d={n:z.read(n) for n in z.namelist()}; d['word/document.xml']=d['word/document.xml'].replace(b' title=\"\"',b''); o=zipfile.ZipFile('FINAL_REPORT.docx','w',zipfile.ZIP_DEFLATED); [o.writestr(n,v) for n,v in d.items()]; o.close()"` or use pandoc ≤ 3.12. |
-| `docs/SLIDES.md`, `docs/SLIDES.pptx`, `docs/SCRIPT.md` | Presentation slides (Marp source and PPTX) and the per-member speaking script. |
+| `docs/DEMO_SCRIPT.md` | The 10-minute demo walkthrough with per-member speaking lines. |
 
 ## Results in short
 
