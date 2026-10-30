@@ -631,6 +631,36 @@ For the message "How do I track my card?" this produces five different prompts f
 
 And the retrieval generator, for the same message, fills `EXAMPLES` with the five rows shown above (`How can I track my card's delivery?` → `card_arrival`, and so on). A different customer message gets different examples with no change to the code.
 
+**The structured-output schema and sample outputs (Section 10)**
+
+The schema as built at start-up in `src/structured.py`. The `enum` holds all 77 intent names, read from `data/train.csv`:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "intent":     {"type": "string",
+                   "enum": ["Refund_not_showing_up", "activate_my_card", "age_limit",
+                            "... (all 77 intent names) ...",
+                            "wrong_exchange_rate_for_cash_withdrawal"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+  },
+  "required": ["intent", "confidence"],
+  "additionalProperties": false
+}
+```
+
+Sample outputs from the run, exactly as the model wrote them (`evaluation/results/results_structured.csv`):
+
+| Customer message | Model output | Validator |
+|---|---|---|
+| How long should my new card take to arrive? | `{"intent": "card_arrival", "confidence": 0.9}` | valid, correct |
+| What foreign exchange rate will you use? | ```` ```json {"intent": "exchange_rate", "confidence": 0.9} ``` ```` | valid after the fence is stripped, correct |
+| How do I exchange currency? | `{"intent": "exchange_currency", "confidence": 0.9}` | **rejected**: `$.intent = 'exchange_currency' is invalid` |
+| help me obtain a virtual card | `{"intent": "get_virtual_card", "confidence": 0.95}` | **rejected**: `$.intent = 'get_virtual_card' is invalid` |
+
+The two rejected names look plausible but are not in the 77-name list (the real labels are `exchange_via_app` and `getting_virtual_card`). A loose text parser would have accepted them; the enum turns them into a handled error, and the assistant asks the customer to rephrase. The `confidence` value is copied from the examples (0.9 or 0.95 on every row), which is why the field was dropped from the final system.
+
 ## Appendix E. Tool calling: definitions, runs, and sequence
 
 **Tool definitions as passed to the model**
