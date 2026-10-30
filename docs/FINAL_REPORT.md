@@ -15,9 +15,9 @@ RAO SHRAVAN HARSHA JAYSHREE, 2025paml572 \
 
 ## 1. Abstract
 
-We built a support assistant for an online bank. A customer types one message; the assistant works out which of 77 request types ("intents") it is, calls a backend tool for that intent, and writes a short reply. The language model is a small open model, `Qwen2.5-1.5B-Instruct`, run locally with no training. We tested, one at a time, the four ways to steer such a model at run time: the prompt, the decoding settings, a fixed output format, and tool calling. Prompt wording and decoding changed accuracy by at most 0.03. Showing the model five labelled examples *similar to the customer's message* (retrieval-augmented prompting) raised accuracy from 0.43 to 0.84. On 100 messages the system had never seen, accuracy was 0.77, level with a classical classifier trained on the full data set. The same pipeline on a second model, Microsoft's Phi-4-mini, gave the same pattern with higher numbers (0.87 held-out). A LoRA fine-tune of the 1.5B model, trained only on the train split, scored 0.93 / 0.93 (baseline prompt) and 0.94 / 0.91 (retrieval prompt) on the development and held-out subsets; those scores are for the intent classifier only. We also trained the two model families we had ruled out, a conditional text VAE and a latent GAN: their text reaches 57 to 63% intent fidelity, far below the LLM, but as support models they add +0.05 accuracy from synthetic data in a low-resource setting and an out-of-scope guard that catches 90% of off-topic messages at a 2% false-reject rate. Every number in this report comes from a result file in the repository.
+We built a support assistant for an online bank. A customer types one message; the assistant works out which of 77 request types ("intents") it is, calls a backend tool for that intent, and writes a short reply. The language model is a small open model, `Qwen2.5-1.5B-Instruct`, run locally with no training. We tested, one at a time, the four ways to steer such a model at run time: the prompt, the decoding settings, a fixed output format, and tool calling. Prompt wording and decoding changed accuracy by at most 0.03. Showing the model five labelled examples *similar to the customer's message* (retrieval-augmented prompting) raised accuracy from 0.43 to 0.84; on 100 messages the system had never seen it scored 0.77, level with a classical classifier trained on the full data set. A second model (Phi-4-mini) reproduced the pattern with higher numbers (0.87 held-out). A LoRA fine-tune, trained only on the train split, scored up to 0.94 development and 0.91 held-out for the intent step. We also trained the two model families we had ruled out, a text VAE and a latent GAN: their text reaches only 57 to 63% intent fidelity, but as support models they add +0.05 accuracy in a low-resource setting and an out-of-scope guard (90% caught, 2% false rejects). Every number in this report comes from a result file in the repository.
 
-**Terms used in this report.** *Intent*: the type of request behind a message, one of 77 names such as `card_arrival`. *Prompt*: the text we give the model. *Token*: a word or word piece; the model reads and writes text one token at a time. *Greedy decoding*: always take the most likely next token, so the output is the same every run. *Sampling*: pick the next token at random, weighted by its probability. *Few-shot examples*: solved examples placed inside the prompt. *Retrieval*: looking up the train rows most similar to the message and using them as the examples. *Schema*: a rule set that the model's output must satisfy, here a JSON object with an `intent` field whose value must be one of the 77 names. *Tool*: a function the code runs when the model asks for it, such as "block the card".
+**Terms.** *Intent*: the request type behind a message, one of 77 names such as `card_arrival`. *Greedy decoding*: always take the most likely next token (deterministic); *sampling* picks it at random, weighted by probability. *Few-shot examples*: solved examples placed inside the prompt. *Retrieval*: looking up the train rows most similar to the message and using them as the examples. *Schema*: a rule set the model's output must satisfy, here a JSON object whose `intent` value must be one of the 77 names. *Tool*: a function the code runs for the model, such as "block the card".
 
 ## 2. Problem Statement and Motivation
 
@@ -31,15 +31,10 @@ We built a support assistant for an online bank. A customer types one message; t
 
 **Expected input and output**
 
-- Input: one plain-text message, usually 5 to 20 words, often with informal grammar and typos ("verfiy"). There is no account data and no conversation history; the assistant works from this one message only.
-- Output: (1) an intent label, one of the 77 names or an explicit "could not understand"; (2) a tool call with that intent as its argument, which in this project goes to a simulated backend in `main.py` that returns a fixed result and a reference number; (3) a two- or three-sentence reply that reports the tool result and claims nothing the tool result does not show.
+- Input: one plain-text message, usually 5 to 20 words, often with informal grammar and typos. No account data, no conversation history.
+- Output: (1) an intent label, one of the 77 names or an explicit "could not understand"; (2) a tool call with that intent as its argument, served by a simulated backend that returns a fixed result and a reference number; (3) a two- or three-sentence reply that claims nothing the tool result does not show.
 
-**Why a Generative-AI / LLM solution is appropriate**
-
-- Free-text input: a pretrained language model already understands that "block my card" and "my card was stolen" mean the same, and copes with typos. Rules do not.
-- Natural-language output: the reply must be fluent and based on the tool result. A classifier cannot write it.
-- No training needed: we had no GPU and no data for new intents. A language model is steered at run time through four levers, each studied in this report: the prompt, the decoding settings, an output schema, and tool calling.
-- One model, three jobs: intent, tool call, and reply would need a classifier, a rules layer, and a template in a classical setup. One instruction-tuned model does all three.
+**Why a Generative-AI / LLM solution is appropriate.** A pretrained language model understands that "block my card" and "my card was stolen" mean the same, and copes with typos; rules do not. The reply must be fluent and grounded in the tool result; a classifier cannot write it. No training is needed: the model is steered at run time through four levers, each studied in this report (the prompt, the decoding settings, an output schema, tool calling). And one instruction-tuned model does all three jobs — intent, tool call, reply — that would need a classifier, a rules layer, and a template in a classical setup.
 
 ## 3. Dataset Description and Preparation
 
@@ -47,12 +42,7 @@ We built a support assistant for an online bank. A customer types one message; t
 
 - BANKING77 (Casanueva et al., 2020), released by PolyAI. Public, with no personal data. 13,083 customer messages from an online-banking chat, each labelled with one of 77 intents. Two fields: `text` (the message as written) and `category` (the label). Fixed split: `data/train.csv` with 10,003 rows and `data/test.csv` with 3,080 rows, both copied into the repository. All 77 intents appear in both files.
 
-**What the data looks like**
-
-- Short messages: 11.9 words on average, 79 at most. Informal writing and typos are kept ("verfiy", "I tired to deposit").
-- Mildly imbalanced: in the train file the largest intent (`card_payment_fee_charged`) has 187 rows, the smallest (`contactless_not_working`) has 35.
-- One label has a capital letter, `Refund_not_showing_up`. Our parser compares in lowercase so this label is not lost.
-- Many intents are near-synonyms. Where one ends and the next begins is a convention of the dataset that cannot be read from the names: `card_arrival` vs `card_delivery_estimate`, `verify_my_identity` vs `why_verify_identity`, `pending_transfer` vs `transfer_timing` vs `transfer_not_received_by_recipient`. This one property explains most of the errors in this project.
+**What the data looks like.** Short messages (11.9 words on average), with informal writing and typos kept ("verfiy"). Mildly imbalanced: the largest intent has 187 train rows, the smallest 35. One label has a capital letter (`Refund_not_showing_up`), so the parser compares in lowercase. Most importantly, many intents are near-synonyms, and where one ends and the next begins is a convention of the dataset that cannot be read from the names: `card_arrival` vs `card_delivery_estimate`, `verify_my_identity` vs `why_verify_identity`. This one property explains most of the errors in this project.
 
 | text | category |
 |---|---|
@@ -69,9 +59,7 @@ The first three rows show the near-synonym problem: three messages, two labels, 
 - Two fixed subsets are cut from the test file with `evaluation/make_eval_subset.py` and committed. The **development subset** (`eval_subset.csv`, 100 rows, `random_state=0`, 53 intents) is used by every experiment to compare approaches. The **held-out subset** (`heldout_subset.csv`, 100 different rows, `random_state=1`, 57 intents, no overlap) is used once, by the final system only.
 - Why 100 rows: one run takes about 2 minutes on an 8 GB laptop, against about 1 hour for the full test file, and we ran 13 configurations. Why two subsets: the development subset was used to choose the final system, so its score is optimistic; the held-out subset gives an honest number.
 
-**Which data each experiment used**
-
-- Every experiment is scored on the same 100 development rows. What changes is how the train file is used: not at all; as 5 fixed rows chosen once at random; or as 5 rows retrieved per message by similarity. The classical reference is trained on all 10,003 rows. Appendix B lists this per experiment and shows the 5 fixed rows, which cover only 4 of the 77 intents: they show the model the output format, but almost never the intent it needs.
+**Which data each experiment used.** Every experiment is scored on the same 100 development rows; what changes is how the train file is used (not at all; 5 fixed random rows; or 5 rows retrieved per message). Appendix B lists this per experiment and shows the 5 fixed rows, which cover only 4 of the 77 intents.
 
 ## 4. Generative-Model and LLM Architecture Analysis
 
@@ -81,12 +69,12 @@ In short: an **autoregressive (causal) language model** (GPT, Llama, Qwen, Phi) 
 
 | Need of the application | Autoregressive LM | VAE | GAN |
 |---|---|---|---|
-| Input is free text | Native. Any text is a prefix. | Needs a separate text encoder. | Needs a separate text encoder. |
-| Output is discrete tokens of variable length (an intent name, a reply) | Native. | Weak. Decoding discrete tokens from the latent vector gives poor text. | Weak. Training through discrete tokens does not work directly; text GANs are rare and low quality. |
-| Conditioning on instructions, examples, retrieved context, tool results | All of these are text, so all are prefixes. One mechanism. | Conditioning on a sentence needs an extra encoder and retraining. | Same problem as VAE. |
-| Control at run time without training | Prompt, decoding settings, output schema, stop tokens, chat template with tools. | Move in latent space. No prompt. | Very little. Mode collapse is common. |
-| Pretrained model for text, runnable on a laptop | Many, at every size, with instruction tuning and tool templates. | A few small research models. None instruction-tuned. | None of usable quality. |
-| Deterministic output when needed (classification) | Yes, greedy decoding. | Sampling by design. | Sampling by design. |
+| Free-text input | Native: any text is a prefix | Needs a separate text encoder | Needs a separate text encoder |
+| Discrete token output (a label, a reply) | Native | Weak: decoding from the latent gives poor text | Weak: no gradient through discrete tokens |
+| Conditioning on instructions, examples, tool results | All are text, so all are prefixes | Extra encoder and retraining | Same problem as VAE |
+| Run-time control without training | Prompt, decoding, schema, tool template | Move in latent space; no prompt | Very little; mode collapse |
+| Pretrained text model for a laptop | Many, instruction-tuned | A few research models | None of usable quality |
+| Deterministic when needed | Yes, greedy decoding | Sampling by design | Sampling by design |
 
 **Why a causal language model is the right choice**
 
@@ -96,41 +84,25 @@ In short: an **autoregressive (causal) language model** (GPT, Llama, Qwen, Phi) 
 
 **The LLM architecture**
 
-The model is `Qwen/Qwen2.5-1.5B-Instruct`, loaded with Hugging Face `transformers` in `src/llm.py`. It is a decoder-only Transformer: text goes in, one token comes out, that token is appended to the text, and the process repeats. Every number below was measured on this model in the notebook with the real message "How do I track my card?". A diagram of the five stages is in Appendix D.
+The model is `Qwen/Qwen2.5-1.5B-Instruct`, loaded with Hugging Face `transformers` in `src/llm.py`. It is a decoder-only Transformer: text goes in, one token comes out, that token is appended to the text, and the process repeats. The five stages, measured in the notebook on the real message "How do I track my card?" (diagram in Appendix D): the **tokenizer** splits text into subwords from a vocabulary of 151,936 (the message is 7 tokens; a retrieval prompt about 520); the **embedding** turns each token into a vector of 1,536 numbers; **28 decoder layers** of masked self-attention let the `Intent:` position look back at the message and the example that looks like it; the **LM head** gives a probability for every one of the 151,936 tokens (on the bare message the top tokens start a sentence: ` I`, ` To`, ` How`); **generation** appends one chosen token and repeats (`card_arrival` takes 4 steps, a reply 60 to 80).
 
-| Stage | What it does | Measured on "How do I track my card?" |
-|---|---|---|
-| 1. Tokenizer | Splits text into subwords from a vocabulary of 151,936 and maps each to an integer | 7 tokens: `[4340, 653, 358, 3754, 847, 3701, 30]`. A baseline prompt is about 420 tokens, a retrieval prompt about 520 |
-| 2. Embeddings | Each token ID selects a row of 1,536 numbers. Position is added inside attention (rotary) | A tensor of shape (1, 7, 1536) |
-| 3. Transformer | 28 decoder layers of masked self-attention plus a feed-forward network. Each position can look back at earlier positions only | The `Intent:` position attends back to the message and to the example that looks like it |
-| 4. LM head | The last vector times a (1,536 × 151,936) matrix gives one score per token; softmax turns the scores into probabilities | Top-5 next tokens on the bare message: ` I` (0.097), ` To` (0.097), ` How`, ` You`, ` A`. The model is about to start a sentence |
-| 5. Generation | One token is chosen and appended, and the pass runs again until the end token `<\|im_end\|>` or `max_new_tokens` | `card_arrival` takes 4 steps; a reply takes 60 to 80 |
-
-What this means for the experiments: the prompt's job is to move the probability at stage 4 from "start a sentence" onto the first token of an intent name (Sections 6, 7, 9); decoding (Section 8) is the rule for choosing from that probability, and greedy makes every classification run reproducible; `max_new_tokens` counts tokens, and at 16 it cut off 34 baseline answers (accuracy 0.27 against 0.41 at 32). The tool loop (Section 10) is the same process: the model emits a `<tool_call>` block, the code runs the tool and appends the result. `generate()` in `src/llm.py` is the only place the model is called.
+What this means for the experiments: the prompt's job is to move the probability at the LM head from "start a sentence" onto the first token of an intent name (Sections 6, 7, 9); decoding (Section 8) is the rule for choosing from that probability, and greedy makes every classification run reproducible; `max_new_tokens` counts tokens, and at 16 it cut off 34 baseline answers (accuracy 0.27 against 0.41 at 32). The tool loop (Section 10) is the same process with `<tool_call>` blocks. `generate()` in `src/llm.py` is the only place the model is called.
 
 ## 5. Proposed Application Architecture
 
 The final assistant is `main.py` (E7 in the code and the result files). One function, `handle(message)`, runs one customer request from start to finish. One Hugging Face model does three jobs: intent classification, tool participation, and the customer reply.
 
-**The two tools**
-
-| Tool | What it does | Input | Output |
-|---|---|---|---|
-| `classify_intent` | Retrieval prompt (Section 9), greedy decoding, parse, schema validation (Section 10) | `{"message": string}` | `{"intent": <one of 77>}` or `{"error": ...}` |
-| `handle_intent` | Simulated banking backend: looks the intent up in two tables | `{"intent": string}` | `{"intent", "status", "result"}` plus `"reference"` when done |
-
-The 77 intents fall into three groups, all covered by the simulation: 17 **action** intents (block card, cancel transfer, change PIN, ...) return `done` with a reference number; 34 **question** intents return `information` with the fact; 26 intents that need a human (disputes, declined payments) return `unsupported` with the route to an agent.
+**The two tools.** `classify_intent` takes `{"message"}` and returns `{"intent"}` or `{"error"}`: the retrieval prompt (Section 9), greedy decoding, parsing, and schema validation (Section 10). `handle_intent` takes the validated `{"intent"}` and is the simulated banking backend. The 77 intents fall into three groups, all covered by the simulation: 17 **action** intents (block card, cancel transfer, ...) return `done` with a reference number; 34 **question** intents return `information` with the fact; 26 intents that need a human (disputes, declined payments) return `unsupported` with the route to an agent.
 
 **The flow of one request**
 
 1. The optional out-of-scope guard (`VAE_GUARD=1`, Section 11) can refuse a non-banking message before any LLM call.
-2. `classify_intent` retrieves the 5 most similar train rows, builds the prompt, decodes greedily, parses, and validates against the 77-name enum.
-3. If no valid intent: a fixed sentence asks the customer to rephrase. No backend call, no second model call.
-4. If the intent is one of the 17 actions, the assistant does not act. It states what it understood and asks for a yes. The yes/no check on the next turn is code, not the model.
-5. `handle_intent` runs and returns the result.
-6. The model writes the reply from the tool transcript (sampling, temperature 0.7, 80 tokens). The system prompt forbids claims the tool result does not contain; a code filter drops questions and intent names from the reply.
+2. `classify_intent` retrieves the 5 most similar train rows, builds the prompt, decodes greedily, and validates against the 77-name enum.
+3. If no valid intent: a fixed sentence asks the customer to rephrase; no backend call, no second model call.
+4. If the intent is one of the 17 actions: the assistant states what it understood and asks for a yes. The yes/no check on the next turn is code, not the model.
+5. `handle_intent` runs; the model then writes the reply from the tool transcript (sampling, temperature 0.7), under a system prompt that forbids claims the tool result does not contain.
 
-![Sequence of one request through main.py](images/sequence.png)
+![Sequence of one request through main.py](images/sequence.png){width=60%}
 
 **Design principles.** The code fixes the tool order and checks the confirmation; the model's only free decision is the wording of the reply (the measurement that forced this is in Section 10). Every value that crosses from model text to code passes a schema. When the system is unsure, it fails towards a human. The browser front end (`ui.py`) runs the same `handle()` and shows the tool calls next to the chat.
 
@@ -138,14 +110,11 @@ The 77 intents fall into three groups, all covered by the simulation: 17 **actio
 
 This is experiment E1 in the code and the result files. The baseline answers one question: what does the model do with the simplest possible prompt? Every later number is read against it, and its errors set the plan for the experiments that follow.
 
-**Setup**
-
-- `Qwen/Qwen2.5-1.5B-Instruct`, bfloat16, on an Apple M3 laptop with 8 GB RAM (MPS). Model load about 10 seconds, one classification about 1 second. Prompt: a task line, the 77 intent names, the message; no role, no examples, no output rules. Greedy decoding, `max_new_tokens=32`. The 100 development rows. Code `src/baseline.py`.
+**Setup.** `Qwen/Qwen2.5-1.5B-Instruct`, bfloat16, on an 8 GB laptop; one classification takes about 1 second. Prompt: a task line, the 77 intent names, the message; no role, no examples, no output rules. Greedy decoding, `max_new_tokens=32`, the 100 development rows. Code `src/baseline.py`.
 
 ```
 Classify the customer message into one of these intents:
-Refund_not_showing_up, activate_my_card, age_limit, apple_pay_or_google_pay, ... (all 77 names)
-
+Refund_not_showing_up, activate_my_card, ... (all 77 names)
 Message: How do I track my card?
 Intent:
 ```
@@ -171,7 +140,7 @@ Intent:
 | Invented intent name | 3 | `top_up_verification` | Constraint, JSON schema |
 | Refusal | 2 | "does not match any of the provided intents" | Constraint |
 
-- The first two groups, 45 of 59 errors, are missing knowledge: the prompt gives only the 77 names, and nothing tells the model where the dataset draws the line between `card_arrival` and `card_delivery_estimate`. The last three groups are format problems, which looked fixable with instructions (Section 7) and a schema (Section 10). Appendix C explains each group and the two lessons from building the baseline (a too-small `max_new_tokens` cost 0.14; the parser must ignore case).
+The first two groups, 45 of 59 errors, are missing knowledge: nothing tells the model where the dataset draws the line between `card_arrival` and `card_delivery_estimate`. The last three groups are format problems, which looked fixable with instructions (Section 7) and a schema (Section 10). Appendix C explains each group.
 
 ## 7. Prompt-Engineering Experiments
 
@@ -179,33 +148,19 @@ This is experiment E2. The baseline had two kinds of problem: format (preamble, 
 
 **Programmatic prompting.** No prompt in this project is typed by hand per message. Every prompt is built by a function from parts: a `TASK` line built from the 77 names read from the data, an optional `CONSTRAINT` line, optional `EXAMPLES`, and the `QUERY`. One function, `build_prompt(message, style)` in `src/prompts.py`, builds all five styles below from the same parts; `src/retrieval.py` and `src/structured.py` reuse the parts with different example selection. Change a parameter and you get a different prompt; loop over 100 messages and you get 100 prompts with the same shape. Every comparison in Sections 7 to 10 is fair because the only thing that differed between runs was the parameter passed to the generator. Code and the five prompts produced for one message: Appendix D.
 
-**The five prompt styles**
+**The five prompt styles and their results**
 
-| Style | What is added |
-|---|---|
-| `zero_shot` | Nothing. Identical to the baseline. |
-| `role` | A system message: "You are a customer support assistant for an online bank." |
-| `constraint` | One line: "Reply with the exact intent name from the list and nothing else. Always choose exactly one intent." |
-| `few_shot` | 5 solved examples from the train file, chosen once at random (`random_state=0`) |
-| `few_shot_constraint` | Both the constraint line and the 5 examples |
+| Style | What is added | Accuracy | No valid intent | Preamble |
+|---|---|---|---|---|
+| `zero_shot` | Nothing; identical to the baseline | 0.41 | 4 | 57 |
+| `role` | A system message: "You are a customer support assistant for an online bank." | 0.40 | 4 | 30 |
+| `constraint` | One line: "Reply with the exact intent name from the list and nothing else. Always choose exactly one intent." | 0.40 | 2 | 0 |
+| `few_shot` | 5 solved train examples, chosen once at random | **0.43** | 12 | 1 |
+| `few_shot_constraint` | Both the constraint line and the 5 examples | **0.43** | 8 | 0 |
 
-**Results**
+22 of the 100 rows were correct under all five prompts; 40 were wrong under all five. Row by row (Appendix C): `constraint` fixed the format completely (preamble 57 to 0, no refusals) and left accuracy at 0.40; `few_shot` gave the best accuracy but invented more names; `few_shot_constraint` kept the accuracy with the cleanest output.
 
-| Prompt | Accuracy | No valid intent | Outputs with a preamble |
-|---|---|---|---|
-| `zero_shot` (baseline) | 0.41 | 4 | 57 |
-| `role` | 0.40 | 4 | 30 |
-| `constraint` | 0.40 | 2 | 0 |
-| `few_shot` | **0.43** | 12 | 1 |
-| `few_shot_constraint` | **0.43** | 8 | 0 |
-
-- 22 of the 100 rows were correct under all five prompts; 40 were wrong under all five. The hard rows are hard for every prompt.
-- Row by row (Appendix C): `role` cut the preamble but gained nothing. `constraint` fixed the format completely (preamble 57 to 0, no refusals, half as many invented names) and left accuracy at 0.40. `few_shot` gave the best accuracy, but the model copied the snake_case style of the examples and invented more names (no valid intent 4 to 12). `few_shot_constraint` kept the accuracy with the cleanest output.
-
-**What the comparison says**
-
-- Instructions fix the format. One constraint line removed every preamble and every refusal. That is cheap and reliable.
-- Instructions do not fix the knowledge. Accuracy moved between 0.40 and 0.43 across five prompts, within noise on 100 rows. Five random examples teach the shape of the answer, not the boundaries between labels; they cover 4 of 77 intents (Appendix B). The 40 rows wrong under every prompt are the strongest evidence in this project that prompt wording is not the lever. They are the reason we moved to retrieval (Section 9): examples that are *about the message*.
+**What the comparison says.** Instructions fix the format: one constraint line removed every preamble and every refusal. Instructions do not fix the knowledge: accuracy moved between 0.40 and 0.43 across five prompts, within noise. Five random examples teach the shape of the answer, not the boundaries between labels (they cover 4 of 77 intents, Appendix B). The 40 rows wrong under every prompt are the reason we moved to retrieval (Section 9): examples that are *about the message*.
 
 **Decision.** Carry `few_shot_constraint` forward as the fixed prompt for the decoding and structured-output experiments, and keep the constraint line in every later prompt, including the final system.
 
@@ -213,10 +168,7 @@ This is experiment E2. The baseline had two kinds of problem: format (preamble, 
 
 This is experiment E3. Section 4 showed that the model ends each step with a probability for every one of 151,936 tokens. Decoding is the rule for picking one. Does the rule change the quality of the intent label, or how stable the answer is from run to run?
 
-**The settings**
-
-- **Greedy**: always the most probable token; deterministic. **Temperature**: divide the scores by a number before softmax; below 1 makes the distribution sharper, above 1 flatter; then sample. **Top-k**: keep only the k most probable tokens, renormalise, sample. **Top-p (nucleus)**: keep the smallest set of tokens whose probabilities add up to p, renormalise, sample.
-- Same prompt for all runs (`few_shot_constraint`), same 100 rows and parser, `torch.manual_seed(0)` for the sampling runs. Code `src/decoding.py`.
+**The settings.** **Greedy**: always the most probable token; deterministic. **Temperature**: scale the scores before softmax (below 1 sharper, above 1 flatter), then sample. **Top-k**: sample from the k most probable tokens. **Top-p**: sample from the smallest set whose probabilities add up to p. Same prompt for all runs (`few_shot_constraint`), same 100 rows and parser, seeded sampling. Code `src/decoding.py`.
 
 **Results: quality and variability**
 
@@ -228,13 +180,9 @@ This is experiment E3. Section 4 showed that the model ends each step with a pro
 | `top_k_50` | 0.44 | 7 | 29 | 4 / 3 |
 | `top_p_0.9` | 0.38 | 11 | 28 | 3 / 8 |
 
-- Mild sampling changed 20 of 100 answers; strong sampling changed 42. The flips went both ways, and at the two strongest settings more went from right to wrong than from wrong to right.
-- At temperature 1.5, the 7 outputs with no valid label were not near-misses: `intent unknown`, `intent_type 0`, `google_pay_failed_top_up`. Once the first token goes off the list, the rest follows.
+Mild sampling changed 20 of 100 answers; strong sampling changed 42. The flips went both ways, and at the two strongest settings more went from right to wrong than the reverse. At temperature 1.5 the invalid outputs were not near-misses (`intent unknown`, `intent_type 0`): once the first token goes off the list, the rest follows.
 
-**What the study says**
-
-- Decoding does not help a classification task. The answer is one short label with one correct token sequence. Greedy already takes the model's best guess at each step, and randomness can only move away from it. The +0.01 at two settings is noise.
-- More randomness means more invented labels and less reproducibility. Greedy is the only deterministic setting.
+**What the study says.** Decoding does not help a classification task: the answer is one short label with one correct token sequence, greedy already takes the model's best guess at each step, and randomness can only move away from it. More randomness means more invented labels and less reproducibility.
 
 **Decision.** Greedy for every intent classification: the same message must give the same intent every time. Sampling (temperature 0.7) only for the customer reply in the final system, where variation in wording is safe because the facts come from the tool result.
 
@@ -244,18 +192,15 @@ After Sections 7 and 8, accuracy was 0.43 and 40 rows were wrong under every pro
 
 **The three options**
 
-| | More prompting | Retrieval-augmented prompting (RAG) | Fine-tuning / PEFT (LoRA) |
+| | More prompting | Retrieval (RAG) | Fine-tuning / PEFT (LoRA) |
 |---|---|---|---|
-| What it would do here | Longer instructions, or a one-line description of each of the 77 intents | For each message, look up the most similar labelled train rows and put them in the prompt as examples | Train a small set of extra weights on the 10,003 train rows so the label boundaries are stored in the model |
-| Training and hardware | None; laptop | None; a TF-IDF index over 10,003 rows, built in seconds; laptop | A training loop on a GPU; not possible on an 8 GB laptop |
-| Main risk | Already shown flat: five prompts moved accuracy by 0.03 | A bad retrieval misleads the model | Overfitting 77 classes on 10k rows; loses the "no training" property |
+| What it would do here | Longer instructions, or 77 intent descriptions | Put the most similar labelled train rows in the prompt | Train small extra weights so the boundaries live in the model |
+| Training and hardware | None; laptop | None; a TF-IDF index, built in seconds; laptop | A training loop on a GPU |
+| Main risk | Already shown flat (±0.03) | A bad retrieval misleads the model | Overfitting; loses the "no training" property |
 
-**What we chose and why.** Retrieval. It attacks the exact failure, costs no training, and runs on the laptop. We also had evidence in advance: a simple vote over the 5 most similar train rows, with no language model at all, already scores 0.77, so the train file holds the boundary knowledge. The goal was to beat the classical classifier (0.79), and retrieval did that. More prompting was ruled out by Section 7. Fine-tuning was done later as a follow-up, once a GPU was available (below). The full comparison table is in Appendix H.
+**What we chose and why.** Retrieval. It attacks the exact failure, costs no training, and runs on the laptop. We had evidence in advance: a simple vote over the 5 most similar train rows, with no language model at all, already scores 0.77, so the train file holds the boundary knowledge. More prompting was ruled out by Section 7; fine-tuning was done later as a follow-up, once a GPU was available (below). Full comparison table: Appendix H.
 
-**How retrieval works here**
-
-- A TF-IDF index (single words and word pairs) is built once at start-up over the 10,003 train rows. For each message we compute cosine similarity to every train row, take the top 5, and put them into the `few_shot_constraint` prompt in place of the 5 random rows. Everything else is unchanged. Code `src/retrieval.py`; the prompt as sent is in Appendix D.
-- For "How do I track my card?" four of the five retrieved rows are about tracking a card and carry `card_arrival`. The model answers `card_arrival`; under every earlier prompt it had answered `card_delivery_estimate`.
+**How retrieval works here.** A TF-IDF index (words and word pairs) is built once over the 10,003 train rows; for each message the 5 most similar rows replace the 5 random examples in the `few_shot_constraint` prompt. Nothing else changes (`src/retrieval.py`; the prompt as sent is in Appendix D). For "How do I track my card?" four of the five retrieved rows carry `card_arrival`, and the model answers `card_arrival`; under every earlier prompt it had answered `card_delivery_estimate`.
 
 **Results** (all on the same 100 development rows)
 
@@ -266,17 +211,13 @@ After Sections 7 and 8, accuracy was 0.43 and 40 rows were wrong under every pro
 | Reference: TF-IDF + logistic regression (trained once on all 10,003 rows) | no | none | 0.79 | 0 |
 | **After: retrieval few-shot + constraint** | yes | 5 retrieved per message | **0.84** | 3 |
 
-- The correct label was among the 5 retrieved examples for 94 of 100 messages. Row by row, retrieval fixed 42 rows that `few_shot_constraint` got wrong and broke 1. Against the 5-NN vote on the same examples it is 12 right to 5 wrong: the model adds value above the examples (worked example in Appendix F).
-- Accuracy doubled with no training, and beats the classical classifier that was trained on the full train file. Retrieval brought one new failure: TF-IDF matches words, not meaning, and a surface-word match can mislead the model (Section 12, type F).
+The correct label was among the 5 retrieved examples for 94 of 100 messages. Retrieval fixed 42 rows that `few_shot_constraint` got wrong and broke 1; against the 5-NN vote on the same examples it is 12 right to 5 wrong, so the model adds value above its examples (Appendix F). Accuracy doubled with no training and beats the trained classical classifier. One new failure appeared: TF-IDF matches words, not meaning, and a surface-word match can mislead the model (Section 12, type F).
 
 **Decision.** The final assistant uses retrieval few-shot with the constraint line and greedy decoding; this is the classifier inside `classify_intent` in `main.py`.
 
 **The PEFT follow-up: two LoRA runs**
 
-After the retrieval decision, the same base model was fine-tuned with LoRA on a desktop NVIDIA RTX 3060 (12 GB). The base weights stay frozen; trainable weights are rank-8 matrices on the attention projections (`lora_alpha` 16, dropout 0.05), about 2.2 million parameters, 0.14% of the model. The train file is `data/train.csv` only: 500 rows held out for validation (`random_state=0`), training on the other 9,503. The test file and both evaluation subsets are never used for training or early stopping. The loss is on the answer tokens only.
-
-- **Run 1, baseline prompt** (2 h 11 min, 3 epochs, validation loss fell every epoch): the prompt is the Section 6 baseline prompt; no examples. Adapter: `models/intent-lora/`.
-- **Run 2, retrieval prompt** (2 h 53 min, best at epoch 2): each training row carries the 5 most similar *other* training rows as examples, so training matches the prompt `main.py` sends. Adapter: `models/intent-lora-retrieval/`. This is the current `uv run -m src.finetune`.
+After the retrieval decision, the same base model was fine-tuned with LoRA on a desktop NVIDIA RTX 3060 (12 GB). The base weights stay frozen; trainable weights are rank-8 matrices on the attention projections, about 2.2 million parameters, 0.14% of the model. Training uses `data/train.csv` only (500 rows held out for validation); the test file and both evaluation subsets are never seen. Two runs of about 2 to 3 hours each: one on the baseline prompt (adapter `models/intent-lora/`), one on the retrieval prompt, where each training row carries the 5 most similar *other* training rows so training matches the prompt `main.py` sends (adapter `models/intent-lora-retrieval/`, the current `uv run -m src.finetune`).
 
 | Subset | LoRA, retrieval prompt | LoRA, baseline prompt | Retrieval, no adapter |
 |---|---|---|---|
@@ -292,18 +233,12 @@ Six to nine messages per subset are wrong, and every error is a neighbouring int
 **Structured output (experiment E4).** Up to now the model wrote free text and a loose parser searched for an intent name inside it. A system that calls a banking backend needs a field with a value from a fixed list, and a hard yes or no on whether that value is legal. The model answers in JSON, validated with `jsonschema`:
 
 ```json
-{
-  "type": "object",
-  "properties": {
-    "intent":     {"type": "string", "enum": ["<the 77 intent names>"]},
-    "confidence": {"type": "number", "minimum": 0, "maximum": 1}
-  },
-  "required": ["intent", "confidence"],
-  "additionalProperties": false
-}
+{"type": "object", "additionalProperties": false, "required": ["intent", "confidence"],
+ "properties": {"intent":     {"type": "string", "enum": ["<the 77 intent names>"]},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1}}}
 ```
 
-- `intent` with `enum`: the value must be exactly one of the 77 names, read from the data at start-up. This turns "is this a real intent?" from a text-matching guess into a hard check. Setup: a format line, the same 5 fixed examples rewritten as JSON answers, greedy decoding. Code `src/structured.py`.
+The `enum` turns "is this a real intent?" from a text-matching guess into a hard check. Setup: a format line, the same 5 fixed examples rewritten as JSON answers, greedy decoding. Code `src/structured.py`.
 
 | Check | Count |
 |---|---|
@@ -319,36 +254,25 @@ Six to nine messages per subset are wrong, and every error is a neighbouring int
 
 **A design change we had to make**
 
-- The first design let the model decide which tool to call and when, which is the usual agent pattern. We tested it with the 1.5B model on 4 messages, twice: 0 of 8 correct sequences. The model skipped the tools and answered as a chatbot; it invented `BLOCK_CARD_LOST` as the argument for `handle_intent`; and it claimed "I have blocked your card" with no tool call, the most harmful kind of hallucination for a banking assistant.
-- So the final system fixes the order in code, and the model's only free decision is the wording of the reply. This is the lesson of Sections 7 and 8 again: with a small model, put control in code and leave language to the model.
+The first design let the model decide which tool to call and when — the usual agent pattern. We tested it with the 1.5B model on 4 messages, twice: 0 of 8 correct sequences. The model skipped the tools and answered as a chatbot; it invented `BLOCK_CARD_LOST` as a tool argument; and it claimed "I have blocked your card" with no tool call, the most harmful kind of hallucination for a banking assistant. So the final system fixes the order in code, and the model's only free decision is the wording of the reply: with a small model, put control in code and leave language to the model.
 
 ## 11. Evaluation and Results
 
-**The criteria**
+**The criteria.** **Accuracy** (the predicted intent equals the gold label — the assistant acts on it, so this matters most); **valid output** (exactly one real intent name, passing the JSON schema); **format discipline** (no preamble); **reproducibility** (the same message gives the same intent on a repeat run). Also used where they applied: variability under sampling (Section 8) and the schema-rejection count (Section 10).
 
-- **Accuracy**: the predicted intent equals the gold label. The assistant acts on the predicted intent, so this is the number that matters most.
-- **Valid output**: the output contains exactly one real intent name and passes the JSON schema. An invalid label cannot be executed; the system must detect it and ask again.
-- **Format discipline**: no preamble before the label. **Reproducibility**: the same message gives the same intent on a repeat run. Also used where they applied: variability under sampling (Section 8) and the schema-rejection count (Section 10).
+**All systems on the same 100 development rows** (these chose the final system, so they are development scores; the per-style and per-setting rows are in the Section 7 and 8 tables)
 
-**All systems on the same 100 development rows** (these chose the final system, so they are development scores)
-
-| System | Accuracy | No valid intent | Preamble | Deterministic |
-|---|---|---|---|---|
-| Zero-shot baseline | 0.41 | 4 | 57 | yes |
-| Role | 0.40 | 4 | 30 | yes |
-| Constraint | 0.40 | 2 | 0 | yes |
-| Few-shot (random) | 0.43 | 12 | 1 | yes |
-| Few-shot + constraint | 0.43 | 8 | 0 | yes |
-| Temperature 0.7 | 0.44 | 10 | 0 | no |
-| Temperature 1.5 | 0.40 | 7 | 0 | no |
-| Top-k 50 | 0.44 | 7 | 0 | no |
-| Top-p 0.9 | 0.38 | 11 | 0 | no |
-| JSON + schema | 0.43 (0.50 on valid rows) | 14 rejected | 0 | yes |
-| **Retrieval few-shot + constraint (final assistant)** | **0.84** | 3 | 0 | yes |
-| LoRA on the baseline prompt | 0.93 | 0 | 0 | yes |
-| LoRA on the retrieval prompt | 0.94 | 0 | 0 | yes |
-| Reference: TF-IDF + logistic regression | 0.79 | 0 | n/a | yes |
-| Reference: 5-NN vote on retrieved rows | 0.77 | 0 | n/a | yes |
+| System | Accuracy | No valid intent | Deterministic |
+|---|---|---|---|
+| Zero-shot baseline (E1) | 0.41 | 4 | yes |
+| Best instruction prompt (E2, 5 styles: 0.40 to 0.43) | 0.43 | 8 | yes |
+| Best sampling setting (E3, 4 settings: 0.38 to 0.44) | 0.44 | 7 | no |
+| JSON + schema (E4) | 0.43 (0.50 on valid rows) | 14 rejected | yes |
+| **Retrieval few-shot + constraint (final assistant)** | **0.84** | 3 | yes |
+| LoRA on the baseline prompt | 0.93 | 0 | yes |
+| LoRA on the retrieval prompt | 0.94 | 0 | yes |
+| Reference: TF-IDF + logistic regression | 0.79 | 0 | yes |
+| Reference: 5-NN vote on retrieved rows | 0.77 | 0 | yes |
 
 **Final system on the held-out subset**
 
@@ -359,12 +283,11 @@ Six to nine messages per subset are wrong, and every error is a neighbouring int
 | Development | 0.84 | 0.93 | 0.94 |
 | **Held-out** | **0.77** | 0.93 | 0.91 |
 
-- The retrieval held-out score is 0.07 lower than its development score. Part of this is the normal optimism of choosing the best of 13 systems on one set; part is sampling noise (the 95% interval on 100 rows is about ±0.08); and the held-out set covers more intents (57 against 53). 0.77 is the number to quote for the retrieval assistant. It is level with the classical reference (0.79), not clearly above it: that system matches a trained classifier with no training of its own, and in addition writes the reply and drives the tool call.
-- Reproducibility: the notebook re-ran the experiments from scratch and reproduced these numbers. Greedy runs are identical to the character; seeded sampling runs are identical on the same hardware.
+The held-out score is 0.07 lower than development: partly the normal optimism of choosing the best of 13 systems on one set, partly noise (±0.08 on 100 rows). 0.77 is the number to quote: level with the classical reference (0.79), achieved with no training, while also writing the reply and driving the tool call. Reproducibility: the notebook re-ran all experiments from scratch and reproduced these numbers; greedy runs are identical to the character.
 
 **Same pipeline, second model**
 
-Every experiment was run a second time with a pretrained model from a different vendor, `microsoft/Phi-4-mini-instruct` (3.8B parameters), on a Colab T4 GPU. Nothing else changed; one environment variable selects the model. Results: `evaluation/results/phi4/`.
+Every experiment was run a second time with `microsoft/Phi-4-mini-instruct` (3.8B, another vendor) on a Colab GPU; one environment variable selects the model, nothing else changed (`evaluation/results/phi4/`).
 
 | Step | Qwen2.5-1.5B (Alibaba) | Phi-4-mini 3.8B (Microsoft) |
 |---|---|---|
@@ -380,34 +303,15 @@ The levers behave the same way on both models: retrieval is the step that matter
 
 **VAE and GAN follow-up: synthetic messages and an out-of-scope guard**
 
-Section 4 compared the model families on paper. In a follow-up we trained the two other families ourselves and measured what they can contribute. The models are small and train on a CPU in about 25 minutes (`uv run -m src.augment`). Results: `evaluation/results/vae_gan_results.json`, `gan_ablation.json`, and `guard_eval.json`.
+Section 4 compared the model families on paper; in a follow-up we trained the two other families ourselves (`uv run -m src.augment`, about 25 minutes on a CPU). The **VAE** (`src/vae.py`) is a conditional text VAE (GRU encoder and decoder, 64-dimension latent space, conditioned on the intent) trained on the 10,003 train rows; it generates a labelled message from (intent, random z) and scores how "banking-like" any message is. The **GAN** (`src/gan.py`) cannot train on discrete tokens, so it is a conditional WGAN-GP in the VAE's latent space; over training, its Fréchet distance to the real latents falls from 35.4 (500 steps) to 4.0 (8,000 steps). Detail tables: Appendix H.
 
-- **The VAE** (`src/vae.py`) is a conditional text VAE: a GRU encoder and decoder with a 64-dimension latent space, conditioned on the intent, trained on the 10,003 train rows. Word dropout, KL annealing, and free bits prevent posterior collapse. It generates a labelled message from (intent, random z), and it scores how "banking-like" any message is (per-token negative ELBO).
-- **The GAN** (`src/gan.py`) cannot be trained on tokens directly, because there is no gradient through a discrete choice. It is therefore a conditional WGAN-GP in the *latent space* of the VAE: the generator maps (noise, intent) to a latent code, and the frozen VAE decoder turns the code into text. An ablation over training steps shows the GAN moving towards the real latent distribution: the Fréchet distance to the real latents falls from 35.4 at 500 steps to 4.0 at 8,000 steps.
+Three measured results (`vae_gan_results.json`, `gan_ablation.json`, `guard_eval.json`):
 
-Synthetic text quality, 30 messages per intent (2,310 per model), judged by the classical classifier as validator:
+- **Text quality.** 2,310 messages per model: over 98% novel and unique, but intent fidelity is only **56.8% (VAE)** and **63.2% (GAN)** — far below the LLM. The Section 4 analysis, now measured.
+- **Data augmentation.** Filtered synthetic rows added to the classical classifier's train pool change nothing at full data (0.79 → 0.81 development, within noise), but in a low-resource setting (10% of the train data) they lift mean accuracy from **0.59 to 0.64** across 3 seeds. `RETRIEVAL_POOL=vae|gan` adds them to the assistant's retrieval pool; the default stays real rows only.
+- **Out-of-scope guard** (`VAE_GUARD=1`). Two VAE scores (per-token negative ELBO, unknown-word share) with thresholds at the 99th percentile of 2,880 in-domain messages catch **90%** of 40 hand-written off-topic messages at a **2%** false-reject rate (AUROC 0.997 on the unknown-word score). One small GRU pass, off by default.
 
-| Measure | VAE | GAN |
-|---|---|---|
-| Unique | 99.7% | 99.7% |
-| Not in the train file | 98.3% | 98.6% |
-| Intent fidelity (validator agrees with the intended label) | 56.8% | 63.2% |
-
-The GAN conditions better than sampling the VAE prior, but both are far below real data: a third or more of the generated messages do not clearly express their intended intent. This is the Section 4 analysis, now measured.
-
-**Use 1: data augmentation.** Synthetic rows are filtered (at least 3 words, novel, validator agrees with the label at confidence ≥ 0.3; 718 VAE and 866 GAN rows survive) and added to the train pool of the classical classifier.
-
-| Setting | Real only | Best with synthetic rows |
-|---|---|---|
-| Full data (10,003 rows), development / held-out | 0.79 / 0.86 | 0.81 / 0.87 (real + GAN, filtered) |
-| Low resource (10% of the train data, mean of 3 seeds, full test file) | 0.59 | **0.64** (real + VAE, unfiltered) |
-| 5-NN retrieval vote, development / held-out | 0.77 / 0.76 | 0.79 / 0.77 (real + VAE) |
-
-With full data the gains are within noise: 10,003 real rows already cover the intents. In the low-resource setting the gain is real and consistent (+0.05 on 3,080 test rows, stable across 3 seeds): synthetic data helps when real data is scarce. `RETRIEVAL_POOL=vae` or `gan` adds the filtered rows to the retrieval pool of the assistant; the default stays the real rows only.
-
-**Use 2: out-of-scope guard** (`src/guard.py`, enabled with `VAE_GUARD=1`). A message outside banking ("how do I bake sourdough bread?") is otherwise mapped to the nearest intent. The guard catches this before the LLM runs, with two VAE scores: the per-token negative ELBO (high = unlike the banking training messages) and the share of words outside the VAE vocabulary. Thresholds are the 99th percentile of 2,880 in-domain calibration messages. On 100 held-out banking messages and 40 hand-written off-topic messages: 90% of the off-topic messages are caught, 2% of the real banking messages are falsely rejected, AUROC 0.81 (ELBO) and 0.997 (unknown-word share). The check is one small GRU pass and costs milliseconds. It is off by default and does not replace the schema validation.
-
-**What the follow-up says.** The Section 4 choice stands: the VAE and GAN cannot do the task. Their value is at the edges of the system: cheap labelled data where real data is scarce, and a generative score that tells banking text from everything else.
+**What the follow-up says.** The Section 4 choice stands: the VAE and GAN cannot do the task. Their value is at the edges: cheap labelled data where real data is scarce, and a generative score that tells banking text from everything else.
 
 ## 12. Failure Analysis and Responsible-Use Considerations
 
@@ -415,52 +319,39 @@ With full data the gains are within noise: 10,003 real rows already cover the in
 
 | Type | What happens | Where seen | What fixed it |
 |---|---|---|---|
-| A. Near-synonym label | A neighbouring intent with almost the same meaning | All systems; about 35 rows in the baseline, 11 in the final system | Retrieval fixed most, not all |
-| B. Favourite label | Short generic names absorb unrelated messages (`pending_transfer`, `top_up_failed`) | Baseline, prompts | Retrieval |
-| C. Invented label | A plausible snake_case name not in the list: hallucination in a classification setting. The same behaviour produced the invented tool argument `BLOCK_CARD_LOST` and the copied confidence value | Few-shot (12), JSON (14) | The schema enum rejects it; retrieval reduces it to 3 |
-| D. Refusal | "None of the provided intents match" | Baseline (2), final system (3) | The constraint line reduces it |
+| A. Near-synonym label | A neighbouring intent with almost the same meaning | All systems; ~35 baseline rows, 11 final | Retrieval fixed most, not all |
+| B. Favourite label | Short generic names absorb unrelated messages | Baseline, prompts | Retrieval |
+| C. Invented label | A plausible name not in the list (also the invented tool argument `BLOCK_CARD_LOST`) | Few-shot (12), JSON (14) | Schema enum rejects it |
+| D. Refusal | "None of the provided intents match" | Baseline (2), final (3) | The constraint line reduces it |
 | E. Preamble | A sentence before the label | Baseline (57), role (30) | Constraint or few-shot |
-| F. Retrieval misleads | The nearest examples share words but not meaning | Final system only; 2 rows the baseline got right | A retriever that matches meaning |
-| G. Random decoding | Sampling turns a right answer wrong | Decoding runs, 5 to 13 flips per setting | Greedy |
+| F. Retrieval misleads | The nearest examples share words but not meaning | Final system only (2 rows) | A retriever that matches meaning |
+| G. Random decoding | Sampling turns a right answer wrong | Decoding runs (5 to 13 flips) | Greedy |
 
 Eleven worked cases with cause and fix, and a sample of the held-out errors, are in Appendix F. Of the 23 held-out errors, 19 are type A or B and 4 are refusals (D). No invented label reached the output, because the schema blocks them.
 
-**What the analysis says**
-
-1. The dominant failure is near-synonym confusion. Instructions cannot fix it, because the missing piece is knowledge of where the dataset draws its label boundaries. Relevant examples fix most of it (0.43 to 0.84) but not all (11 rows on development, 19 on held-out).
-2. Format failures (C, D, E) are cheap to fix and worth fixing: one constraint line removed all preamble; the schema turns invented labels into a handled error.
-3. Retrieval has its own failure: a word-based retriever matches words. A sentence-embedding retriever is the clear next step.
-4. Sampling adds errors and removes none for a one-label answer.
-5. A few gold labels are arguable (Appendix F, cases 7 and 9). Part of the remaining error is dataset ambiguity, not model failure.
+**What the analysis says.** The dominant failure is near-synonym confusion: instructions cannot fix it, because the missing piece is knowledge of where the dataset draws its label boundaries; relevant examples fix most of it (0.43 to 0.84) but not all. Format failures (C, D, E) are cheap to fix and worth fixing. Retrieval's own failure (F) needs a retriever that matches meaning. Sampling adds errors and removes none for a one-label answer. And a few gold labels are arguable (Appendix F, cases 7 and 9): part of the remaining error is dataset ambiguity, not model failure.
 
 **Responsible use**
 
-The assistant can trigger actions on a bank account from free text written by anyone. The five risks below are ones we observed in our own runs. Three further risks that we expect in live use but did not observe (prompt injection, uneven performance across intents, stale facts) are in Appendix H.
+The assistant can trigger actions on a bank account from free text written by anyone. Five risks were observed in our own runs; each has a control already in the system (full table with production controls in Appendix H):
 
-| Risk | Where we saw it | Control in the system | Further control for production |
-|---|---|---|---|
-| **Wrong action from a wrong intent** | 16 of 100 development and 23 of 100 held-out rows are misclassified | Schema enum: only real intents reach `handle_intent`. The error path asks the customer to rephrase. The 17 action intents are confirmed first | Route low-similarity messages to a human. Confirm with the exact action detail, not only the intent name |
-| **Hallucinated claims** | "I have blocked your card" with no tool call (model-driven test); a negative tool result turned into an instruction in the reply | The code decides the tool order. The system prompt forbids claims the tool results do not show. Tool results are written as instructions, not negative statements | Check the reply against the tool result. Use a template for the action sentence |
-| **Invented labels or arguments** | `top_up_verification`, `get_virtual_card`, `BLOCK_CARD_LOST` | Enum validation on every label. The `handle_intent` argument comes from the validated output, never from free model text | Log every rejected value for review |
-| **Privacy and data leakage** | BANKING77 is anonymised; live traffic is not | The model runs locally; no message leaves the machine. The backend stores nothing. Examples come from the public train file | Mask personal data before retrieval and logging. Log retention policy. If hosted: data-processing agreement |
-| **Over-reliance** | A fluent reply reads as more certain than 0.77 held-out accuracy deserves | Every reply carries a reference number. Unsupported intents are routed to a human | Show the identified intent. Human fallback on low confidence. Per-intent accuracy monitoring |
+- **Wrong action from a wrong intent** (23 of 100 held-out rows misclassified): only schema-valid intents reach the backend, and the 17 action intents are confirmed with the customer first.
+- **Hallucinated claims** ("I have blocked your card" with no tool call, in the model-driven test): the code decides the tool order, and the reply is written from the real tool transcript under a prompt that forbids new facts.
+- **Invented labels or arguments** (`get_virtual_card`, `BLOCK_CARD_LOST`): enum validation on every value that crosses from model text to code.
+- **Privacy**: the model runs locally, no message leaves the machine, and the examples come from the public train file.
+- **Over-reliance** (a fluent reply reads as more certain than 0.77 deserves): every action carries a reference number, and unsupported intents are routed to a human.
+
+Three further risks expected in live use but not observed (prompt injection, uneven performance across intents, stale facts) are also in Appendix H.
 
 **Three principles behind the controls.** Put control in code and leave language to the model: the model never chooses which tool runs or with what argument. Validate at the boundary: every value that crosses from model text to code passes a schema, so an invalid value becomes a handled error, not an action. Fail towards a human: when the system is unsure, or the intent is a dispute, it says so and points to a human agent.
 
 ## 13. Limitations
 
-- **Small models.** The main results use a 1.5B-parameter model; the cross-check uses 3.8B. Larger models lift every number (Section 11) but did not fit the 8 GB target hardware.
-- **Single turn.** The assistant handles one message with no account data and no conversation history. Apart from the yes/no confirmation it cannot ask a clarifying question.
-- **Simulated backend.** The facts in the information table are illustrative, not real bank policy; reference numbers are derived from the intent name, so they are not unique; unsupported intents do not actually open a ticket.
-- **Word-level retrieval.** TF-IDF matches words, not meaning, and produces failure type F. A sentence-embedding retriever would address this.
-- **Small evaluation sets.** 100 rows per subset keep every run at about 2 minutes, but the 95% interval is about ±0.08, so small differences between systems are not significant.
-- **Intent-only fine-tune scores.** The LoRA numbers (0.94 / 0.91) score the classifier step; the reply text and the tool actions were not re-scored with an adapter attached.
-- **Dataset ambiguity.** Some gold labels are arguable; a part of the remaining error is the dataset's, not the model's.
-- **Guard cost.** The out-of-scope guard falsely rejects about 2% of real banking messages at its chosen threshold, and it is calibrated to this dataset's writing style.
+**Small models**: the main results use 1.5B parameters, the cross-check 3.8B; larger models lift every number but did not fit the 8 GB target hardware. **Single turn**: one message, no account data, no history; apart from the yes/no confirmation the assistant cannot ask a clarifying question. **Simulated backend**: the information facts are illustrative, reference numbers are not unique, and unsupported intents do not actually open a ticket. **Word-level retrieval**: TF-IDF matches words, not meaning (failure type F). **Small evaluation sets**: 100 rows per subset, so the 95% interval is about ±0.08 and small differences are not significant. **Intent-only fine-tune scores**: the LoRA numbers score the classifier step; the reply and tool actions were not re-scored with an adapter. **Dataset ambiguity**: some gold labels are arguable, so part of the remaining error is the dataset's. **Guard cost**: the out-of-scope guard falsely rejects about 2% of real banking messages and is calibrated to this dataset's writing style.
 
 ## 14. Conclusion and Future Work
 
-We set out to build a reliable prompted system around a small pretrained language model, and to learn through experiments what makes it reliable. The answer for this task is specific. Prompt wording and decoding settings, the levers most often discussed, moved accuracy by at most 0.03. Output format responded strongly to a single constraint line and to a JSON schema with an enumeration. Accuracy responded to one thing: putting the right labelled examples in front of the model. That took it from 0.43 to 0.84 on the development set and to 0.77 on untouched rows, level with a trained classical classifier without any training. The model could not be trusted to run the control flow; the code had to. The same pipeline on a second model from another vendor gave the same picture at a higher level: every lever behaved the same way, and the final system reached 0.87 on the held-out rows, above the classical reference. The LoRA follow-up stored the label boundaries in the weights (0.94 / 0.91 on the retrieval prompt); the VAE and GAN follow-up confirmed that those families are support models for this task, not replacements. The final assistant combines these conclusions, and every number is traceable to a table in this report and to a result file in the repository.
+We set out to build a reliable prompted system around a small pretrained language model, and to learn through experiments what makes it reliable. The answer is specific. Prompt wording and decoding, the levers most often discussed, moved accuracy by at most 0.03; format responded strongly to one constraint line and a JSON schema with an enumeration. Accuracy responded to one thing: putting the right labelled examples in front of the model — 0.43 to 0.84 on development, 0.77 on untouched rows, level with a trained classical classifier without any training. The model could not be trusted to run the control flow; the code had to. A second model from another vendor reproduced every conclusion at a higher level (0.87 held-out, above the classical reference). The LoRA follow-up stored the label boundaries in the weights (0.94 / 0.91); the VAE and GAN follow-up confirmed those families are support models here, not replacements. Every number is traceable to a result file in the repository.
 
 **Future work**
 
@@ -953,6 +844,36 @@ At temperature 1.5, 7 outputs contained no valid label. They are not near-misses
 - What holds for both. Retrieval is the step that matters (+0.41 for Qwen, +0.32 for Phi) and both pass the classical reference only after it; the vote is 0.77 in both runs because it does not use the model, so the gap above it (0.07, 0.15) is what each model adds. Sampling never beats greedy, and `temperature_1.5` hurts most (21 Phi outputs without a valid intent). The schema catches the same invented names; Phi's 7 rejections are a subset of Qwen's 14. On held-out, 74 rows are right for both and 10 wrong for both, all near-synonym pairs.
 - What differs. Phi starts higher (0.53) with no preamble even without the constraint line. Random few-shot examples hurt Phi (0.60 to 0.49), so the sharper E2 statement, true for both, is "relevant examples help, random examples do not". Phi ends higher, 0.87 against 0.77 held-out (13 rows right for Phi only, 3 for Qwen only); at the edge of what 100 rows can show, but in the same direction on both subsets.
 - In one sentence: the levers behave the same way on both models, a larger model from another vendor lifts the whole curve, and with it the final system is above the classical reference (0.87 against 0.79) instead of level with it.
+
+**VAE and GAN detail (Section 11)**
+
+Synthetic text quality, 30 messages per intent (2,310 per model), judged by the classical classifier as validator:
+
+| Measure | VAE | GAN |
+|---|---|---|
+| Unique | 99.7% | 99.7% |
+| Not in the train file | 98.3% | 98.6% |
+| Intent fidelity (validator agrees with the intended label) | 56.8% | 63.2% |
+
+Data augmentation: synthetic rows are filtered (at least 3 words, novel, validator agrees with the label at confidence ≥ 0.3; 718 VAE and 866 GAN rows survive) and added to the train pool of the classical classifier.
+
+| Setting | Real only | Best with synthetic rows |
+|---|---|---|
+| Full data (10,003 rows), development / held-out | 0.79 / 0.86 | 0.81 / 0.87 (real + GAN, filtered) |
+| Low resource (10% of the train data, mean of 3 seeds, full test file) | 0.59 | **0.64** (real + VAE, unfiltered) |
+| 5-NN retrieval vote, development / held-out | 0.77 / 0.76 | 0.79 / 0.77 (real + VAE) |
+
+Guard calibration: thresholds are the 99th percentile of the ELBO and unknown-word scores of 2,880 in-domain messages; tested on 100 held-out banking messages and 40 hand-written off-topic messages. AUROC 0.81 (ELBO) and 0.997 (unknown-word share).
+
+**The five observed risks in detail (Section 12)**
+
+| Risk | Where we saw it | Control in the system | Further control for production |
+|---|---|---|---|
+| **Wrong action from a wrong intent** | 16 of 100 development and 23 of 100 held-out rows are misclassified | Schema enum: only real intents reach `handle_intent`. The error path asks the customer to rephrase. The 17 action intents are confirmed first | Route low-similarity messages to a human. Confirm with the exact action detail, not only the intent name |
+| **Hallucinated claims** | "I have blocked your card" with no tool call (model-driven test); a negative tool result turned into an instruction in the reply | The code decides the tool order. The system prompt forbids claims the tool results do not show. Tool results are written as instructions, not negative statements | Check the reply against the tool result. Use a template for the action sentence |
+| **Invented labels or arguments** | `top_up_verification`, `get_virtual_card`, `BLOCK_CARD_LOST` | Enum validation on every label. The `handle_intent` argument comes from the validated output, never from free model text | Log every rejected value for review |
+| **Privacy and data leakage** | BANKING77 is anonymised; live traffic is not | The model runs locally; no message leaves the machine. The backend stores nothing. Examples come from the public train file | Mask personal data before retrieval and logging. Log retention policy. If hosted: data-processing agreement |
+| **Over-reliance** | A fluent reply reads as more certain than 0.77 held-out accuracy deserves | Every reply carries a reference number. Unsupported intents are routed to a human | Show the identified intent. Human fallback on low confidence. Per-intent accuracy monitoring |
 
 **Three further risks expected in live use (Section 12)**
 
