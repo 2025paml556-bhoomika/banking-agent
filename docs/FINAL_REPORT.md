@@ -1024,7 +1024,7 @@ _[To be completed by the group. One row per member: name, ID, sections of the re
 
 | Member | ID | Report sections | Code / experiments | Presentation | Confirmed |
 |---|---|---|---|---|---|
-| Bhoomika Bathla | 2025paml556 | 7 (decoding), 8 (adaptation / RAG), 9 (structured output), 12 (LoRA fine-tune) | `src/decoding.py` (E3), `src/retrieval.py`, `src/structured.py` (E4), `src/finetune.py`, `evaluation/finetune_eval.py` | | |
-| Girish M | 2025paml612 | 3 (model analysis), 4 (architecture, diagram), 12 (VAE and GAN follow-up) | `src/vae.py`, `src/gan.py`, `src/text_vocab.py`, `src/augment.py`, `src/guard.py`, `evaluation/gan_ablation.py`, `evaluation/guard_eval.py` | | |
-| TENDOLKAR MOHIT NARENDRA NEHA | 2025paml602 | 6 (prompt engineering), 11 (programmatic prompting) | `src/prompts.py` (E2) | | |
-| RAO SHRAVAN HARSHA JAYSHREE | 2025paml572 | 1 (problem definition), 2 (dataset understanding), 5 (baseline) | `src/baseline.py` (E1), `evaluation/make_eval_subset.py` | | |
+| Bhoomika Bathla | 2025paml556 | 7 (decoding), 8 (adaptation / RAG), 9 (structured output), 12 (LoRA fine-tune); failure analysis for these experiments (types C, F, G) | `src/decoding.py` (E3), `src/retrieval.py`, `src/structured.py` (E4), `src/finetune.py`, `evaluation/finetune_eval.py` | | |
+| Girish M | 2025paml612 | 3 (model analysis), 4 (architecture, diagram), 12 (VAE and GAN follow-up); failure analysis for the synthetic data and the guard | `src/llm.py`, `src/vae.py`, `src/gan.py`, `src/text_vocab.py`, `src/augment.py`, `src/guard.py`, `evaluation/gan_ablation.py`, `evaluation/guard_eval.py` | | |
+| TENDOLKAR MOHIT NARENDRA NEHA | 2025paml602 | 6 (prompt engineering), 10 (tool calling), 11 (programmatic prompting); failure analysis for prompts and the tool loop (types C, D, E) | `src/prompts.py` (E2), `main.py` (final assistant), `ui.py` | | |
+| RAO SHRAVAN HARSHA JAYSHREE | 2025paml572 | 1 (problem definition), 2 (dataset understanding), 5 (baseline), 12 (evaluation, held-out run), 13 (responsible use); failure analysis for the baseline (types A, B) | `src/baseline.py` (E1), `evaluation/make_eval_subset.py`, `evaluation/reference_classifier.py`, `evaluation/final_eval.py` | | |
