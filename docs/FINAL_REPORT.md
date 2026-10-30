@@ -69,7 +69,7 @@ The first three rows show the near-synonym problem: three messages, two labels, 
 
 ## 3. Generative Model Analysis
 
-This section compares generative model families on what they can do for our task. It is an analysis, not an experiment: no pretrained VAE, GAN, or text-diffusion model of usable quality exists for text, and building one would not have changed the choice. In short: an **autoregressive (causal) language model** (GPT, Llama, Qwen, Phi) predicts the next token from all previous tokens and so can read and write any text; a **variational autoencoder (VAE)** compresses an input into a small vector and decodes it back, and generates by sampling that vector; a **generative adversarial network (GAN)** has a generator that makes samples from noise and a discriminator that tries to tell them from real ones; **diffusion models** learn to remove noise step by step and are strongest for images. For text, VAE, GAN, and diffusion are research tools; the comparison below treats them together.
+This section compares generative model families on what they can do for our task. The comparison itself is an analysis: no pretrained VAE, GAN, or text-diffusion model of usable quality exists for text, so the assistant had to be an autoregressive LM. In a later follow-up we trained a small text VAE and a latent GAN ourselves and measured them (Section 12, "VAE and GAN follow-up"). The measurements confirm this analysis: the models generate useful *support* data (synthetic examples, an out-of-scope score), but their text is far below LLM quality and they cannot replace it. In short: an **autoregressive (causal) language model** (GPT, Llama, Qwen, Phi) predicts the next token from all previous tokens and so can read and write any text; a **variational autoencoder (VAE)** compresses an input into a small vector and decodes it back, and generates by sampling that vector; a **generative adversarial network (GAN)** has a generator that makes samples from noise and a discriminator that tries to tell them from real ones; **diffusion models** learn to remove noise step by step and are strongest for images. For text, VAE, GAN, and diffusion are research tools; the comparison below treats them together.
 
 **Comparison on what our application needs**
 
@@ -452,6 +452,37 @@ Every experiment was run a second time with a pretrained model from a different 
 
 The levers behave the same way on both models: retrieval is the step that matters, sampling never beats greedy, and the schema catches the same kind of invented names. The larger model from another vendor lifts the whole curve, and with it the final system is above the classical reference (0.87 against 0.79) instead of level with it. The full table and the row-level comparison of the two models are in Appendix H.
 
+**VAE and GAN follow-up: synthetic messages and an out-of-scope guard**
+
+Section 3 compared the model families on paper. In a follow-up we trained the two other families ourselves and measured what they can contribute. The models are small and train on a CPU in about 25 minutes (`uv run -m src.augment`). Results: `evaluation/results/vae_gan_results.json`, `gan_ablation.json`, and `guard_eval.json`; sample outputs in `samples_vae.csv` and `samples_gan.csv`.
+
+- **The VAE** (`src/vae.py`) is a conditional text VAE: a GRU encoder and decoder with a 64-dimension latent space, conditioned on the intent, trained on the 10,003 train rows. Word dropout, KL annealing, and free bits prevent posterior collapse. It generates a labelled message from (intent, random z), and it scores how "banking-like" any message is (per-token negative ELBO).
+- **The GAN** (`src/gan.py`) cannot be trained on tokens directly, because there is no gradient through a discrete choice. It is therefore a conditional WGAN-GP in the *latent space* of the VAE: the generator maps (noise, intent) to a latent code, and the frozen VAE decoder turns the code into text. An ablation over training steps shows the GAN moving towards the real latent distribution: the Fréchet distance to the real latents falls from 35.4 at 500 steps to 4.0 at 8,000 steps.
+
+**Synthetic text quality.** 30 messages per intent, 2,310 per model, judged by the classical classifier as validator:
+
+| Measure | VAE | GAN |
+|---|---|---|
+| Unique | 99.7% | 99.7% |
+| Not in the train file | 98.3% | 98.6% |
+| Intent fidelity (validator agrees with the intended label) | 56.8% | 63.2% |
+
+The GAN conditions better than sampling the VAE prior (63% against 57% fidelity), but both are far below real data: a third or more of the generated messages do not clearly express their intended intent. This is the Section 3 analysis, now measured.
+
+**Use 1: data augmentation.** Synthetic rows are filtered (at least 3 words, novel, validator agrees with the label at confidence ≥ 0.3; 718 VAE and 866 GAN rows survive) and added to the train pool of the classical classifier.
+
+| Setting | Real only | Best with synthetic rows |
+|---|---|---|
+| Full data (10,003 rows), development / held-out | 0.79 / 0.86 | 0.81 / 0.87 (real + GAN, filtered) |
+| Low resource (10% of the train data, mean of 3 seeds, full test file) | 0.59 | **0.64** (real + VAE, unfiltered) |
+| 5-NN retrieval vote, development / held-out | 0.77 / 0.76 | 0.79 / 0.77 (real + VAE) |
+
+With full data the gains are within noise: 10,003 real rows already cover the intents. In the low-resource setting the gain is real and consistent (+0.05 on 3,080 test rows, stable across 3 seeds): synthetic data helps when real data is scarce. `RETRIEVAL_POOL=vae` or `gan` adds the filtered rows to the retrieval pool of the assistant; the default stays the real rows only.
+
+**Use 2: out-of-scope guard** (`src/guard.py`, enabled with `VAE_GUARD=1`). Appendix E notes that a message outside banking ("how do I bake sourdough bread?") is still mapped to the nearest intent. The guard catches this before the LLM runs, with two VAE scores: the per-token negative ELBO (high = unlike the banking training messages) and the share of words outside the VAE vocabulary. Thresholds are the 99th percentile of 2,880 in-domain calibration messages. On 100 held-out banking messages and 40 hand-written off-topic messages: 90% of the off-topic messages are caught, 2% of the real banking messages are falsely rejected, AUROC 0.81 (ELBO) and 0.997 (unknown-word share). The check is one small GRU pass and costs milliseconds. It is off by default and does not replace the schema validation.
+
+**What the follow-up says.** The Section 3 choice stands: the VAE and GAN cannot do the task (their text is 57 to 63% faithful to the intent; the LLM classifies at 0.84). Their value is at the edges of the system: cheap labelled data where real data is scarce, and a generative score that tells banking text from everything else.
+
 **Failure analysis: the seven failure types**
 
 | Type | What happens | Where seen | What fixed it |
@@ -490,7 +521,7 @@ The assistant can trigger actions on a bank account from free text written by an
 
 ## 14. Conclusion
 
-We set out to build a reliable prompted system around a small pretrained language model, and to learn through experiments what makes it reliable. The answer for this task is specific. Prompt wording and decoding settings, the levers most often discussed, moved accuracy by at most 0.03. Output format responded strongly to a single constraint line and to a JSON schema with an enumeration. Accuracy responded to one thing: putting the right labelled examples in front of the model. That took it from 0.43 to 0.84 on the development set and to 0.77 on untouched rows, level with a trained classical classifier without any training. The model could not be trusted to run the control flow; the code had to. The same pipeline on a second model from another vendor (Phi-4-mini, 3.8B) gave the same picture at a higher level: every lever behaved the same way, and the final system reached 0.87 on the held-out rows, above the classical reference. A later LoRA fine-tune stored those label boundaries in the 1.5B model itself. With the baseline training prompt and no retrieved examples, accuracy was 0.93 on the development subset and 0.93 on the held-out subset, above both the retrieval assistant (0.84 and 0.77) and the classical reference (0.79). A second adapter, trained on the retrieval prompt, scored 0.94 and 0.91 on the same subsets. The remaining errors are still neighbouring intents. `classify_intent` still builds the retrieval prompt; either adapter is used only when `ADAPTER` is set. The 0.93 score is the baseline-prompt classifier. The 0.94 and 0.91 scores are the retrieval-prompt classifier. The final assistant combines the earlier conclusions, and every number is traceable to a table in this report and to a result file in the repository.
+We set out to build a reliable prompted system around a small pretrained language model, and to learn through experiments what makes it reliable. The answer for this task is specific. Prompt wording and decoding settings, the levers most often discussed, moved accuracy by at most 0.03. Output format responded strongly to a single constraint line and to a JSON schema with an enumeration. Accuracy responded to one thing: putting the right labelled examples in front of the model. That took it from 0.43 to 0.84 on the development set and to 0.77 on untouched rows, level with a trained classical classifier without any training. The model could not be trusted to run the control flow; the code had to. The same pipeline on a second model from another vendor (Phi-4-mini, 3.8B) gave the same picture at a higher level: every lever behaved the same way, and the final system reached 0.87 on the held-out rows, above the classical reference. A later LoRA fine-tune stored those label boundaries in the 1.5B model itself. With the baseline training prompt and no retrieved examples, accuracy was 0.93 on the development subset and 0.93 on the held-out subset, above both the retrieval assistant (0.84 and 0.77) and the classical reference (0.79). A second adapter, trained on the retrieval prompt, scored 0.94 and 0.91 on the same subsets. The remaining errors are still neighbouring intents. `classify_intent` still builds the retrieval prompt; either adapter is used only when `ADAPTER` is set. The 0.93 score is the baseline-prompt classifier. The 0.94 and 0.91 scores are the retrieval-prompt classifier. A second follow-up trained the two model families that Section 3 had ruled out, a conditional text VAE and a latent GAN, and measured them: their text reaches 57 to 63% intent fidelity, far below the LLM, which confirms the choice; but as support models they add value, +0.05 accuracy from synthetic data in a low-resource setting and an out-of-scope guard that catches 90% of off-topic messages at a 2% false-reject rate. The final assistant combines the earlier conclusions, and every number is traceable to a table in this report and to a result file in the repository.
 
 ## References
 
@@ -528,7 +559,10 @@ uv run -m src.retrieval                     # adaptation, ~2 min
 uv run -m evaluation.final_eval             # final system on the held-out subset, ~2 min
 uv run -m src.finetune                      # retrieval-prompt LoRA, ~2 h 53 min on an RTX 3060 12 GB; writes models/intent-lora-retrieval/
 uv run -m evaluation.finetune_eval          # scores that adapter (0.94 / 0.91). The baseline-prompt adapter in models/intent-lora/ is an earlier run (~2 h 11 min, 0.93 / 0.93)
-uv run main.py                              # final assistant, interactive
+uv run -m src.augment                       # VAE + latent GAN: train, generate, filter, augmentation scores, ~25 min on CPU
+uv run -m evaluation.gan_ablation           # GAN training-step comparison (Fréchet distance, fidelity)
+uv run -m evaluation.guard_eval             # calibrates and scores the out-of-scope guard
+uv run main.py                              # final assistant, interactive (VAE_GUARD=1 enables the guard)
 ```
 
 Times are for an Apple M3 with 8 GB RAM. `MODEL=microsoft/Phi-4-mini-instruct uv run -m src.baseline` runs any script with another Hugging Face chat model; the Phi results in `evaluation/results/phi4/` were produced this way on a Colab T4.
@@ -837,7 +871,7 @@ Assistant: Sorry, I could not understand your request. Could you say it in a dif
 - The facts in the information table are illustrative, not real bank policy.
 - Reference numbers are derived from the intent name, so two customers blocking a card get the same number. A real backend would issue unique ones.
 - The 26 unsupported intents do not open a ticket or hand over to an agent. A real system would.
-- Messages outside the 77 intents ("how to raise support ticket") are still mapped to the nearest intent, here `contactless_not_working`, and the reply then mentions a "contactless card issue" the customer never raised. A production system needs an out-of-scope check, for example a minimum retrieval similarity.
+- Messages outside the 77 intents ("how to raise support ticket") are still mapped to the nearest intent, here `contactless_not_working`, and the reply then mentions a "contactless card issue" the customer never raised. A production system needs an out-of-scope check. The VAE guard built in the follow-up (Section 12, `VAE_GUARD=1`) provides one: it catches 90% of off-topic messages at a 2% false-reject rate. It is off by default.
 
 **Sequence of one request, as numbered steps**
 
@@ -920,6 +954,10 @@ All files are in `evaluation/results/` (Qwen2.5-1.5B, the default model) and `ev
 | `results_heldout.csv` | Final system on the held-out subset (Section 12) | no `output` |
 | `results_finetune_dev.csv`, `results_finetune_heldout.csv` | LoRA on the baseline prompt (Section 12) | |
 | `results_finetune_retrieval_dev.csv`, `results_finetune_retrieval_heldout.csv` | LoRA on the retrieval prompt (Section 12). Summary table: `finetune_retrieval_scores.md` | |
+| `vae_gan_results.json` | VAE and GAN follow-up (Section 12): training history, text quality, Fréchet distances, augmentation scores, low-resource runs | JSON summary, not per-row |
+| `gan_ablation.json` | GAN training-step comparison (Section 12) | JSON summary |
+| `guard_eval.json` | Out-of-scope guard calibration and scores (Section 12) | JSON summary |
+| `samples_vae.csv`, `samples_gan.csv` | 60 synthetic messages per generator, for inspection | `text, category, source` |
 
 **Notes on the files (Sections 5 to 9)**
 
