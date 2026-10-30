@@ -2,9 +2,9 @@
 
 PCAM ZG516 Applied Generative AI. Group Major Project, Assignment 1.
 
-**Group:** _[group number]_
-**Members:** _[name, ID]_ · _[name, ID]_ · _[name, ID]_ · _[name, ID]_
-**Dataset option:** D1, BANKING77
+**Group:** _[group number]_ \
+**Members:** _[name, ID]_ · _[name, ID]_ · _[name, ID]_ · _[name, ID]_ \
+**Dataset option:** D1, BANKING77 \
 **Code:** https://github.com/2025paml556-bhoomika/banking-agent
 
 ---
