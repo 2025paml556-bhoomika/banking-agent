@@ -1,0 +1,42 @@
+[
+  {
+    "model": "VAE prior N(0,I) (no GAN)",
+    "steps": 0,
+    "frechet": 1.1014789852591171,
+    "fidelity_pct": 55.97402597402598,
+    "novel_pct": 98.74458874458874,
+    "distinct2": 0.2546209429518144
+  },
+  {
+    "model": "latent GAN, lr 0.0001",
+    "steps": 500,
+    "frechet": 35.39217633417504,
+    "fidelity_pct": 65.02164502164503,
+    "novel_pct": 98.09523809523809,
+    "distinct2": 0.22495229936528952
+  },
+  {
+    "model": "latent GAN, lr 0.0001",
+    "steps": 3000,
+    "frechet": 12.500980253936978,
+    "fidelity_pct": 59.913419913419915,
+    "novel_pct": 97.57575757575758,
+    "distinct2": 0.2551873026026466
+  },
+  {
+    "model": "latent GAN, lr 0.0001",
+    "steps": 8000,
+    "frechet": 5.451758873828898,
+    "fidelity_pct": 57.92207792207792,
+    "novel_pct": 98.57142857142858,
+    "distinct2": 0.25232378730290145
+  },
+  {
+    "model": "latent GAN, lr 0.0003",
+    "steps": 8000,
+    "frechet": 4.005943665037851,
+    "fidelity_pct": 63.50649350649351,
+    "novel_pct": 98.13852813852813,
+    "distinct2": 0.2514214014037564
+  }
+]

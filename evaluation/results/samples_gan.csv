@@ -1,0 +1,61 @@
+text,category,source
+are there anywhere that i can withdraw money at all atms?,atm_support,gan
+would i be charged for the transfer?,top_up_by_bank_transfer_charge,gan
+i made a withdrawal but an atm and it was not cleared.,pending_cash_withdrawal,gan
+i want to know how to transfer money into my account. i'm a able to send my money back into this bank.,transfer_into_account,gan
+how do i contact if my account details me.,edit_personal_details,gan
+i am asking to delete my account. how can i get it to work?,terminate_account,gan
+why was i charged a fee to transfer money?,card_payment_fee_charged,gan
+what's my card failed to top up?,top_up_failed,gan
+an us transfer will reach when i transferred,transfer_timing,gan
+why would the transfer failed?,failed_transfer,gan
+what still i talk to order a physical card?,getting_virtual_card,gan
+i didn't track the atm took a card. what the i do?,card_swallowed,gan
+how can i delete my account please?,terminate_account,gan
+please list my cards available to,country_support,gan
+how to transfer money via transfer?,transfer_into_account,gan
+are there any transactions on one who disposable cards?,disposable_card_limits,gan
+"hi, and i went money and want a uk account and i see that there are a way to know that i did not receive.",balance_not_updated_after_bank_transfer,gan
+i think there's a payment / purchase at the app. how long do i go to,card_payment_not_recognised,gan
+i am afraid to verify my identity.,why_verify_identity,gan
+i need your app. there are a payments that shows as pending.,cash_withdrawal_not_recognised,gan
+the exchange rate for my payment last saturday is wrong?!,card_payment_wrong_exchange_rate,gan
+i couldn't my card payment wasn't accepted.,declined_card_payment,gan
+can my account to add money to my account.,topping_up_by_card,gan
+what would i re - apply to top - up?,top_up_limits,gan
+there are a couple of payments on my account on my account. i don't know where these name before.,card_payment_not_recognised,gan
+"what's the second card, what is this?",getting_spare_card,gan
+"i am looking to take out my cards to be changed, when i still have to be to see that it's pending. what will i be",card_arrival,gan
+i am seeing the app a direct debit payment from my account. i don't remember it.,direct_debit_payment_not_recognised,gan
+can i get me to activate my card?,activate_my_card,gan
+verifying identity verification,why_verify_identity,gan
+"i thought any changes, in another country for a transfer, but i noticed that they are funds, and they are. there is an error that wasn't",transfer_fee_charged,gan
+a duplicated i made a transaction and got declined,transaction_charged_twice,gan
+how many days can you have order,order_physical_card,gan
+i have a payment from the first time is it still showing as pending in pending.,pending_card_payment,gan
+is exchanging currency exchange fee?,exchange_charge,gan
+i'm not sure what is needed for the card i tried using it not work. can you tell me what's wrong?,contactless_not_working,gan
+"i had a different money to my beneficiary, why?",beneficiary_not_allowed,gan
+why do i do a transfer to my account?,failed_transfer,gan
+why hasn't my payment appear on pending?,pending_card_payment,gan
+i have been a new card as soon as though the new purchase is still pending. is it possible,card_arrival,gan
+"i am having waiting to a few weeks ago and they see the funds come in her side,",transfer_not_received_by_recipient,gan
+my card payment work it's not working. what should i do?,card_not_working,gan
+i've i attempted a transfer but am i supposed to do now.,beneficiary_not_allowed,gan
+where can i get me if i see unauthorized transactions on my account?,compromised_card,gan
+can i top up on the account?,automatic_top_up,gan
+"hello, and money transaction isn't showing in my account and i want a typo.",balance_not_updated_after_bank_transfer,gan
+how do i get my card instantly?,getting_virtual_card,gan
+can i look on my new card to add money to a new card?,card_linking,gan
+the atm kept my card atm.,card_swallowed,gan
+where can i use this card for atm?,atm_support,gan
+i got less cash than 10 transactions i only got 80,wrong_amount_of_cash_received,gan
+can i open an account for my kids?,age_limit,gan
+i didn't receive the correct amount of cash,wrong_amount_of_cash_received,gan
+is there a reason for a money purchase to show?,pending_transfer,gan
+i have an age limit for opening to open an account for my child.,age_limit,gan
+how come i was charged a fee for something?,card_payment_wrong_exchange_rate,gan
+is there a fee for sending to be hidden with a card?,card_payment_fee_charged,gan
+how do i know where my funds come from?,verify_source_of_funds,gan
+"my last payment is russian ruble into uk pounds, and the exchange rate was wrong for an item i purchased. can you please check what's going on?",card_payment_wrong_exchange_rate,gan
+who do i need to perform identity verification?,verify_my_identity,gan

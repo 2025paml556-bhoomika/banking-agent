@@ -1,0 +1,61 @@
+text,category,source
+is it possible for me with this atm with this card?,atm_support,vae
+no me want to send me my money out of my account. can you explain this?,top_up_by_bank_transfer_charge,vae
+why is the withdrawal still pending?,pending_cash_withdrawal,vae
+i need to transfer to transfer money.,transfer_into_account,vae
+i moved and need to change my personal details. can you help me get my back?,edit_personal_details,vae
+i no longer want my account by my account.,terminate_account,vae
+i have been charged a fee on my card,card_payment_fee_charged,vae
+my top up doesn't work.,top_up_failed,vae
+how long does it take for a transfer to post?,transfer_timing,vae
+i attempted to make a transfer this morning but the payment is not possible. is your system be working?,failed_transfer,vae
+show me virtual card. how do i reverse a virtual card?,getting_virtual_card,vae
+how will i atm my card what must i do to get my own?,card_swallowed,vae
+i want to deactivate an order.,terminate_account,vae
+can i make a card in multiple,country_support,vae
+my money hasn't gone through. how does this transfer post to my account?,transfer_into_account,vae
+are there a charge for a disposable card,disposable_card_limits,vae
+if a transfer that i made a transfer and did not show up!,balance_not_updated_after_bank_transfer,vae
+there is a payment in my app,card_payment_not_recognised,vae
+why must i need to verify my identity?,why_verify_identity,vae
+my balance was withdrawn cash withdrawal. why?,cash_withdrawal_not_recognised,vae
+the exchange rate was incorrect for something i'm being charged!,card_payment_wrong_exchange_rate,vae
+the payment was declined when i try to get my card when it was declined.,declined_card_payment,vae
+why is there a fee to top - up?,topping_up_by_card,vae
+what is the max i can top - up,top_up_limits,vae
+there is a strange payment on my card.,card_payment_not_recognised,vae
+can i want another card?,getting_spare_card,vae
+i havent received my card,card_arrival,vae
+i didn't make that there was a direct debit payment that i didn't make,direct_debit_payment_not_recognised,vae
+please send me a new card because of mine debit. how many times that?,activate_my_card,vae
+"hello, i've tried to verify my contact information. can you tell me where?",why_verify_identity,vae
+why was i charged an extra fee when i paid with the transfer?,transfer_fee_charged,vae
+why can't i cancel my card?,transaction_charged_twice,vae
+where can i order a card?,order_physical_card,vae
+i am waiting for a new payment i made still shows on my account. i don't know why.,pending_card_payment,vae
+is the exchange fee on a certain exchange rate?,exchange_charge,vae
+"contactless, need to be able to use my account.",contactless_not_working,vae
+why haven't i send a transfer from?,beneficiary_not_allowed,vae
+what i could not transfer money to my account.,failed_transfer,vae
+i see a payment with my card that was just made when using it.,pending_card_payment,vae
+why have my card issued tracking for my card?,card_arrival,vae
+i need to see my money to an account i have been a long and would you please.,transfer_not_received_by_recipient,vae
+why was i being broken to get money out of the country and get gas to work out?,card_not_working,vae
+my beneficiary is having a transfer,beneficiary_not_allowed,vae
+i am being charged for using my card.,compromised_card,vae
+if my kids were to exchange?,automatic_top_up,vae
+i am supposed to be made a transaction and it wasn't updated,balance_not_updated_after_bank_transfer,vae
+"i need a virtual card for a bit, please.",getting_virtual_card,vae
+how can i reactivate a new card i thought i still use the app?,card_linking,vae
+the machine of my new card and i don't remember. how long do i actually took out of my account?,card_swallowed,vae
+can i withdraw money from the atm?,atm_support,vae
+i didn't make the amount of cash back. atm did an atm.,wrong_amount_of_cash_received,vae
+i'd like to open an account for children and it is not working. can you help?,age_limit,vae
+why would i revert $ 100 instead of my account?,wrong_amount_of_cash_received,vae
+"i have transfered to transfer to a pending transfer, it hasn't been approved.",pending_transfer,vae
+what can i do to see my account for money?,age_limit,vae
+the rate of exchange for my card was wrong.,card_payment_wrong_exchange_rate,vae
+i received an additional fee when i transferred. what?,card_payment_fee_charged,vae
+all of where of some of where of my available funds come from where i want to use it.,verify_source_of_funds,vae
+i bought something in the exchange rate for my payment.,card_payment_wrong_exchange_rate,vae
+i want to know how much is the full list of where i can make.,verify_my_identity,vae

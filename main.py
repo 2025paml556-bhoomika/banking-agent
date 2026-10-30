@@ -2,6 +2,7 @@
 tool selection, intent classification (retrieval few-shot), and the customer reply."""
 
 import json
+import os
 import re
 import zlib
 
@@ -164,6 +165,7 @@ def call_tool(messages: list[dict], name: str, **arguments) -> dict:
     return output
 
 
+VAE_GUARD = os.environ.get("VAE_GUARD", "0") == "1"  # off unless set; checks src/guard.py before classification
 YES = {"yes", "y", "ok", "okay", "sure", "confirm", "go ahead", "please do"}
 NO = {"no", "n", "cancel", "stop", "don't"}
 
@@ -174,6 +176,11 @@ def handle(message: str, pending: str | None = None) -> tuple[str, str | None]:
     # The code fixes the tool order. The 1.5B model did not do this reliably on its own (see docs/PROGRESS.md, step 9).
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": message}]
     answer = message.strip().lower().rstrip(".!")
+    if VAE_GUARD and not pending and answer not in YES | NO:
+        from src.guard import is_out_of_scope
+
+        if is_out_of_scope(message):
+            return "That does not look like a banking question, so I cannot help with it here. Ask me about your cards, transfers, top-ups or account.", None
     if pending and answer in NO:
         return "Okay, I have not done anything. How else can I help?", None
     if pending and answer in YES:

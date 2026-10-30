@@ -143,7 +143,9 @@ by `uv sync`.
 | `src/prompts.py` | E2. Five prompt styles: zero-shot, role, constraint, few-shot, few-shot + constraint. |
 | `src/decoding.py` | E3. Greedy, temperature 0.7, temperature 1.5, top-k 50, top-p 0.9. |
 | `src/structured.py` | E4. JSON output validated with `jsonschema`. |
-| `src/retrieval.py` | Adaptation. Five examples chosen by TF-IDF similarity. |
+| `src/retrieval.py` | Adaptation. Five examples chosen by TF-IDF similarity. `RETRIEVAL_POOL` can add synthetic rows. |
+| `src/text_vocab.py`, `src/vae.py`, `src/gan.py`, `src/augment.py`, `src/guard.py` | Separate text VAE, latent GAN, synthetic-message experiment, and optional out-of-scope guard. |
+| `models/vae.pt`, `models/gan.pt` | Trained VAE and GAN weights. Not loaded by `main.py` unless `VAE_GUARD=1`. |
 | `src/finetune.py` | LoRA training on the retrieval prompt. Saves `models/intent-lora-retrieval/`. |
 | `evaluation/finetune_eval.py` | Scores that adapter on the development subset, then the held-out subset. |
 | `data/train.csv`, `data/test.csv` | BANKING77 train and test splits (local copies from the PolyAI GitHub repository). |
@@ -185,6 +187,20 @@ Accuracy on the 100 development messages.
 | LoRA, retrieval prompt, same 100 messages (intent only) | 0.91 | — |
 
 Read `docs/PROGRESS.md` for the reasons behind each number.
+
+## Optional VAE and GAN
+
+These models do not load Qwen. The assistant ignores them until you set an environment variable.
+
+```bash
+uv run -m src.augment                 # retrain the VAE and GAN and write data/synthetic_*.csv
+uv run -m evaluation.gan_ablation     # GAN step comparison
+uv run -m evaluation.guard_eval       # out-of-scope thresholds
+VAE_GUARD=1 uv run main.py            # refuse off-topic messages before classification
+RETRIEVAL_POOL=gan uv run -m src.retrieval
+```
+
+`VAE_GUARD` defaults to off. `RETRIEVAL_POOL` defaults to the real train rows. The LoRA adapter in `.env` is unchanged.
 
 ## Common problems
 
